@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Financial Advisor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>💰 AI Financial Advisor</h1>
+            <p class="subtitle">Institutional-grade analysis powered by McKinsey & Bain principles</p>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="stock-tab">Stock Analysis</button>
+            <button class="tab-btn" data-tab="portfolio-tab">Portfolio Analysis</button>
+        </nav>
+
+        <!-- STOCK ANALYSIS TAB -->
+        <section id="stock-tab" class="tab-content active">
+            <div class="panel">
+                <h2>Analyze a Stock</h2>
+                <div class="input-group">
+                    <input type="text" id="stock-symbol" placeholder="e.g., TCS, RELIANCE, INFY" />
+                    <select id="stock-exchange">
+                        <option value="NSE">NSE</option>
+                        <option value="BSE">BSE</option>
+                    </select>
+                    <input type="text" id="stock-question" placeholder="Optional: Ask a specific question" />
+                    <button id="analyze-stock-btn" class="btn btn-primary">Analyze</button>
+                </div>
+                <div id="stock-loading" class="loading hidden">⏳ Fetching data and analysis...</div>
+                <div id="stock-error" class="error hidden"></div>
+                <div id="stock-result" class="result hidden"></div>
+            </div>
+        </section>
+
+        <!-- PORTFOLIO ANALYSIS TAB -->
+        <section id="portfolio-tab" class="tab-content hidden">
+            <div class="panel">
+                <h2>Analyze Your Portfolio</h2>
+                <div class="input-group">
+                    <input type="text" id="portfolio-question" placeholder="Optional: Ask about your portfolio strategy" />
+                    <button id="analyze-portfolio-btn" class="btn btn-primary">Analyze Portfolio</button>
+                </div>
+                <div id="portfolio-loading" class="loading hidden">⏳ Fetching portfolio and analysis...</div>
+                <div id="portfolio-error" class="error hidden"></div>
+                <div id="portfolio-result" class="result hidden"></div>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

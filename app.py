@@ -5,7 +5,7 @@ Handles routes for stock lookup and portfolio analysis.
 """
 
 import os
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
 
 # Load environment variables from .env
@@ -15,14 +15,14 @@ from advisor.stock_analyzer import get_stock_data, get_portfolio_data
 from advisor.portfolio_engine import get_holdings, add_holding
 from advisor.ai_engine import analyze_stock, analyze_portfolio
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='.', static_url_path='')
 
 # --- WEB ROUTES ---
 
 @app.route('/')
 def index():
-    """Serves the main frontend interface."""
-    return render_template('index.html')
+    """Serves the main frontend interface from repo root."""
+    return send_from_directory('.', 'index.html')
 
 # --- API ENDPOINTS ---
 

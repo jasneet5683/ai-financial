@@ -127,3 +127,19 @@ def build_portfolio_user_prompt(portfolio_data: list, user_question: str = None)
         f"Consider diversification, concentration risk, sector exposure, and overall "
         f"portfolio health. Provide your analysis strictly in the JSON schema described."
     )
+
+def build_followup_prompt(stock_data: dict, analysis: dict, question: str) -> str:
+    return f"""
+We just analyzed a stock for a beginner investor. 
+Here is the stock data:
+{stock_data}
+
+Here is the analysis we provided them:
+{analysis}
+
+The user has a follow-up question: "{question}"
+
+Answer their question directly in 3-4 short, easy-to-understand paragraphs. 
+Use plain English. Do not output JSON. Do not use Wall Street jargon. 
+If the question is about geopolitical issues or future growth, give a clear, realistic scenario.
+"""

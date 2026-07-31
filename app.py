@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 #from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 #from dotenv import load_dotenv
-
+import traceback # Add this at the top with your other imports
 
 # Load environment variables from .env
 load_dotenv()
@@ -21,7 +21,6 @@ from advisor.ai_engine import analyze_stock, analyze_portfolio
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app) 
-
 
 # --- WEB ROUTES ---
 
@@ -38,19 +37,22 @@ def api_analyze_stock():
     Analyzes a specific stock.
     JSON input: { "symbol": "TCS", "exchange": "NSE", "question": "optional" }
     """
-    data = request.json
-    symbol = data.get('symbol')
-    exchange = data.get('exchange', 'NSE')
-    user_question = data.get('question')
-
-    if not symbol:
-        return jsonify({"error": "Stock symbol is required"}), 400
-
     try:
+        data = request.json
+        symbol = data.get('symbol')
+        exchange = data.get('exchange', 'NSE')
+        user_question = data.get('question')
+
+        if not symbol:
+            return jsonify({"error": "Stock symbol is required"}), 400
+
+        # 1. Fetch live data
         stock_live_data = get_stock_data(symbol, exchange)
+        
         if "error" in stock_live_data:
             return jsonify(stock_live_data), 500
 
+        # 2. Get AI Analysis
         analysis = analyze_stock(stock_live_data, user_question)
         
         return jsonify({
@@ -58,8 +60,17 @@ def api_analyze_stock():
             "analysis": analysis
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        # Get the full error trace
+        error_details = traceback.format_exc()
+        print(error_details) # This prints to Railway logs
         
+        # Send the exact error back to the frontend
+        return jsonify({
+            "error": "Server crashed. See details below.",
+            "details": str(e),
+            "traceback": error_details 
+        }), 500
+     
 @app.route('/api/analyze-portfolio', methods=['POST'])
 def api_analyze_portfolio():
     """

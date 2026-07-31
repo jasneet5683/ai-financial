@@ -84,4 +84,7 @@ def analyze_stock(stock_data: dict, user_question: str = None) -> dict:
 
 def analyze_portfolio(portfolio_data: list, user_question: str = None) -> dict:
     """
-    Takes structured portfolio data (from stock_analyzer.get
+    Takes structured portfolio data (from stock_analyzer.get_stocks) 
+    and generates AI-powered portfolio analysis and recommendations.
+    """
+    

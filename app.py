@@ -36,12 +36,20 @@ def index():
 
 # --- API ENDPOINTS ---
 
-@app.route('/api/analyze-stock', methods=['POST'])
+@app.route('/api/analyze-stock', methods=['POST', 'OPTIONS'])
 def api_analyze_stock():
     """
     Analyzes a specific stock.
     JSON input: { "symbol": "TCS", "exchange": "NSE", "question": "optional" }
     """
+    if request.method == 'OPTIONS':
+        # Handle the preflight request
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', 'https://finance.jasneet.uk')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 204
+
     data = request.json
     symbol = data.get('symbol')
     exchange = data.get('exchange', 'NSE')
@@ -60,10 +68,14 @@ def api_analyze_stock():
         # 2. Get AI Analysis
         analysis = analyze_stock(stock_live_data, user_question)
         
-        return jsonify({
+        response = jsonify({
             "stock_data": stock_live_data,
             "analysis": analysis
         })
+        # Explicitly add CORS header to the actual response too
+        response.headers.add('Access-Control-Allow-Origin', 'https://finance.jasneet.uk')
+        return response
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

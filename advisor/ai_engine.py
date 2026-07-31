@@ -2,9 +2,6 @@
 ai_engine.py
 Sends structured stock/portfolio data to OpenRouter and returns
 McKinsey/Bain-style analysis as validated JSON.
-
-Prompts are built via prompt_builder.py to keep this module focused
-purely on the API call, fallback logic, and response parsing.
 """
 
 import os
@@ -38,7 +35,9 @@ def _call_openrouter(model: str, system_prompt: str, user_content: str) -> str:
         ],
         "temperature": 0.4,
     }
-    response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
+    
+    # DeepSeek R1 takes a long time to "think". Increased timeout to 180 seconds.
+    response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=180)
     response.raise_for_status()
     result = response.json()
     return result["choices"][0]["message"]["content"]
@@ -49,6 +48,12 @@ def _extract_json(raw_text: str) -> dict:
     Handles cases where the model wraps JSON in markdown fences or adds stray text.
     """
     text = raw_text.strip()
+    
+    # DeepSeek R1 often puts its thinking inside <think>...</think> tags. 
+    # We must remove that before parsing JSON.
+    if "<think>" in text and "</think>" in text:
+        text = text.split("</think>")[-1].strip()
+        
     if text.startswith("```"):
         text = text.strip("`")
         if text.lower().startswith("json"):
@@ -72,19 +77,38 @@ def _extract_json(raw_text: str) -> dict:
     raise ValueError("Could not parse valid JSON from model response")
 
 
+def _run_with_fallback(system_prompt: str, user_content: str) -> dict:
+    """
+    Tries the primary model. If it fails or times out, tries the fallback model.
+    """
+    try:
+        # Try DeepSeek first
+        print(f"Calling OpenRouter with {PRIMARY_MODEL}...")
+        raw_response = _call_openrouter(PRIMARY_MODEL, system_prompt, user_content)
+        return _extract_json(raw_response)
+    
+    except Exception as e:
+        print(f"{PRIMARY_MODEL} failed ({str(e)}). Switching to {FALLBACK_MODEL}...")
+        
+        try:
+            # Fallback to Mistral (much faster, won't time out as easily)
+            raw_response = _call_openrouter(FALLBACK_MODEL, system_prompt, user_content)
+            return _extract_json(raw_response)
+        
+        except Exception as fallback_e:
+            # If both fail, return a structured error so the frontend doesn't crash
+            return {
+                "error": f"AI Engine failed. Primary error: {str(e)}. Fallback error: {str(fallback_e)}"
+            }
+
+
 def analyze_stock(stock_data: dict, user_question: str = None) -> dict:
-    """
-    Takes structured stock data (from stock_analyzer.get_stock_data) and an
-    optional free-text user question, returns AI-generated structured analysis.
-    """
     system_prompt = build_stock_system_prompt()
     user_content = build_stock_user_prompt(stock_data, user_question)
     return _run_with_fallback(system_prompt, user_content)
 
 
 def analyze_portfolio(portfolio_data: list, user_question: str = None) -> dict:
-    """
-    Takes structured portfolio data (from stock_analyzer.get_stocks) 
-    and generates AI-powered portfolio analysis and recommendations.
-    """
-    
+    system_prompt = build_portfolio_system_prompt()
+    user_content = build_portfolio_user_prompt(portfolio_data, user_question)
+    return _run_with_fallback(system_prompt, user_content)

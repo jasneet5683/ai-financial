@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from flask_cors import CORS
 #from dotenv import load_dotenv
 import traceback # Add this at the top with your other imports
-
+import requests 
 # Load environment variables from .env
 load_dotenv()
 
@@ -21,6 +21,50 @@ from advisor.ai_engine import analyze_stock, analyze_portfolio
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app) 
+
+
+#==== Search Function =========
+
+def resolve_company_to_symbol(query: str, exchange: str) -> str:
+    """
+    Takes a company name (e.g., "Tata Motors") and returns its stock symbol (e.g., "TATAMOTORS").
+    Uses Yahoo Finance's public search API.
+    """
+    # If the user typed a short symbol with no spaces, assume it's already a symbol
+    if len(query) <= 15 and " " not in query:
+        # We will still search just in case, but keep the original as fallback
+        pass 
+
+    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={query}"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+        data = response.json()
+        quotes = data.get('quotes', [])
+        
+        if not quotes:
+            return query.upper() # Fallback to what the user typed
+            
+        suffix = ".NS" if exchange == "NSE" else ".BO"
+        
+        # 1. Look for a matching stock on the requested Indian exchange
+        for quote in quotes:
+            sym = quote.get('symbol', '')
+            if sym.endswith(suffix):
+                return sym.replace(suffix, "") # Return just the base symbol (e.g., "TATAMOTORS")
+                
+        # 2. If no exact exchange match, just return the first result's symbol
+        best_match = quotes[0].get('symbol', '')
+        if best_match.endswith('.NS') or best_match.endswith('.BO'):
+            return best_match[:-3]
+            
+        return best_match
+
+    except Exception as e:
+        print(f"Search API failed: {e}")
+        return query.upper() # Fallback to what the user typed if search fails
+
 
 # --- WEB ROUTES ---
 
@@ -39,9 +83,17 @@ def api_analyze_stock():
     """
     try:
         data = request.json
-        symbol = data.get('symbol')
+        raw_input = data.get('symbol') # The user might type "Tata Motors"
         exchange = data.get('exchange', 'NSE')
         user_question = data.get('question')
+
+        if not raw_input:
+            return jsonify({"error": "Company name or symbol is required"}), 400
+
+    # MAGIC HAPPENS HERE: Convert company name to exact symbol
+        symbol = resolve_company_to_symbol(raw_input, exchange)
+        print(f"Resolved user input '{raw_input}' to symbol '{symbol}'")
+
 
         if not symbol:
             return jsonify({"error": "Stock symbol is required"}), 400

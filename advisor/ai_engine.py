@@ -18,14 +18,18 @@ from advisor.prompt_builder import (
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-PRIMARY_MODEL = "deepseek/deepseek-r1"
-FALLBACK_MODEL = "mistralai/mistral-7b-instruct"
+# Use the free tier of DeepSeek R1 as primary
+PRIMARY_MODEL = "deepseek/deepseek-r1:free"
+# Auto-route to the best available free model if primary fails
+FALLBACK_MODEL = "openrouter/auto"
 
 
 def _call_openrouter(model: str, system_prompt: str, user_content: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
+        "HTTP-Referer": "https://ai-stock.app",
+        "X-Title": "Ai-Stock Analyzer"
     }
     payload = {
         "model": model,
@@ -34,6 +38,8 @@ def _call_openrouter(model: str, system_prompt: str, user_content: str) -> str:
             {"role": "user", "content": user_content},
         ],
         "temperature": 0.4,
+        # Force JSON response. Crucial when using openrouter/auto so it picks a JSON-capable model.
+        "response_format": {"type": "json_object"} 
     }
     
     # DeepSeek R1 takes a long time to "think". Increased timeout to 180 seconds.
@@ -91,7 +97,7 @@ def _run_with_fallback(system_prompt: str, user_content: str) -> dict:
         print(f"{PRIMARY_MODEL} failed ({str(e)}). Switching to {FALLBACK_MODEL}...")
         
         try:
-            # Fallback to Mistral (much faster, won't time out as easily)
+            # Fallback to auto-router
             raw_response = _call_openrouter(FALLBACK_MODEL, system_prompt, user_content)
             return _extract_json(raw_response)
         

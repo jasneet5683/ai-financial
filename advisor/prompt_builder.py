@@ -61,12 +61,53 @@ the ticker indicates a foreign exchange (e.g. no .NS/.BO suffix)."""
 
 
 def build_stock_system_prompt() -> str:
-    return f"""{BASE_PERSONA}
+    return """You are a friendly, highly knowledgeable AI financial mentor. Your job is to analyze stock data and explain it simply to an everyday retail investor (the 'common man'). 
+Do not use overly complex Wall Street jargon. Instead, explain *why* the numbers matter using simple language and analogies.
 
-Respond ONLY with valid JSON in exactly this structure (no markdown, no extra text):
+You must ALWAYS return your analysis in the following strict JSON format. 
 
-{STOCK_SCHEMA}"""
+JSON Schema:
+{
+  "executive_summary": "A simple, easy-to-understand 2-3 sentence overview of what the company does and how it's currently performing.",
+  "key_metrics_commentary": "Explain the P/E ratio, EPS, etc. in simple terms. What do these numbers actually mean for a regular investor? Is the stock currently expensive or cheap?",
+  "risks": [
+    {"risk": "Geopolitical Impact", "severity": "High/Medium/Low", "detail": "Explain how current global events (wars, trade policies, supply chains, elections) affect this specific company."},
+    {"risk": "Company Risk", "severity": "High/Medium/Low", "detail": "A specific internal or market risk to this company."}
+  ],
+  "opportunities": [
+    {"opportunity": "Future Growth Prospects", "detail": "Explain the company's future growth plans, new products, or market expansion in simple terms."},
+    {"opportunity": "Industry Trend", "detail": "Explain a broader trend that is helping this company grow."}
+  ],
+  "scenario_analysis": {
+    "bull_case": "Best case scenario over the next 1-2 years.",
+    "base_case": "Most likely scenario.",
+    "bear_case": "Worst case scenario."
+  },
+  "recommendation": "Buy, Hold, or Sell (or 'Wait and Watch')",
+  "rationale": "A simple explanation of why you make this recommendation.",
+  "confidence_level": "High/Medium/Low"
+}"""
 
+
+def build_stock_user_prompt(stock_data: dict, user_question: str = None) -> str:
+    base_prompt = f"""
+Please analyze the following stock data for a beginner investor.
+Company: {stock_data.get('company_name', stock_data.get('ticker'))}
+Current Price: {stock_data.get('current_price')}
+P/E Ratio: {stock_data.get('pe_ratio')}
+EPS: {stock_data.get('eps')}
+Market Cap: {stock_data.get('market_cap')}
+52-Week High/Low: {stock_data.get('52_week_high', 'N/A')} / {stock_data.get('52_week_low', 'N/A')}
+
+CRITICAL INSTRUCTIONS:
+1. Translate these numbers into plain English. 
+2. Explicitly analyze how CURRENT GEOPOLITICAL ISSUES might impact this specific company. Put this in the 'risks' section.
+3. Explicitly analyze the FUTURE GROWTH PROSPECTS of this company. Put this in the 'opportunities' section.
+"""
+    if user_question:
+        base_prompt += f"\nAdditionally, the user asked this specific question: '{user_question}'. Make sure to weave the answer to this question into your summary or rationale in simple terms."
+
+    return base_prompt
 
 def build_portfolio_system_prompt() -> str:
     return f"""{BASE_PERSONA}
@@ -74,20 +115,6 @@ def build_portfolio_system_prompt() -> str:
 Respond ONLY with valid JSON in exactly this structure (no markdown, no extra text):
 
 {PORTFOLIO_SCHEMA}"""
-
-
-def build_stock_user_prompt(stock_data: dict, user_question: str = None) -> str:
-    """
-    user_question: optional free-text question from the user
-    (e.g. "should I buy more at this price?") to give the AI extra context.
-    """
-    question_block = f"\nInvestor's specific question: {user_question}\n" if user_question else ""
-    return (
-        f"Analyze this stock based on the following live data:\n\n"
-        f"{json.dumps(stock_data, indent=2)}\n"
-        f"{question_block}\n"
-        f"Provide your analysis strictly in the JSON schema described in the system prompt."
-    )
 
 
 def build_portfolio_user_prompt(portfolio_data: list, user_question: str = None) -> str:

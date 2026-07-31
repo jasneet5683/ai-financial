@@ -16,6 +16,16 @@ from advisor.portfolio_engine import get_holdings, add_holding
 from advisor.ai_engine import analyze_stock, analyze_portfolio
 
 app = Flask(__name__, static_folder='.', static_url_path='')
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "https://finance.jasneet.uk",
+            "https://www.finance.jasneet.uk",
+            "http://localhost:3000",
+            "http://127.0.0.1:5500"
+        ]
+    }
+})
 
 # --- WEB ROUTES ---
 

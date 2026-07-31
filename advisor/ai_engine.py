@@ -20,7 +20,7 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Use the free tier of DeepSeek R1 as primary
 #PRIMARY_MODEL = "deepseek/deepseek-r1:free"
-PRIMARY_MODEL = "openrouter/auto:free"
+PRIMARY_MODEL = "openrouter/free"
 # Auto-route to the best available free model if primary fails
 #FALLBACK_MODEL = "openrouter/auto"
 FALLBACK_MODEL = "google/gemini-2.0-flash-exp:free"

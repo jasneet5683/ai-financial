@@ -171,6 +171,54 @@ def api_add_stock():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/ask-stock-question', methods=['POST', 'OPTIONS'])
+def api_ask_stock_question():
+    """
+    Handles follow-up questions about a stock after the initial analysis.
+    JSON input: { "stock_data": {...}, "analysis": {...}, "question": "What if a recession hits?" }
+    """
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 204
+
+    data = request.json
+    stock_data = data.get('stock_data')
+    analysis = data.get('analysis')
+    question = data.get('question')
+
+    if not question:
+        return jsonify({"error": "Question is required"}), 400
+
+    try:
+        # We need a new prompt for follow-up questions
+        from advisor.prompt_builder import build_followup_prompt
+        from advisor.ai_engine import _call_openrouter, PRIMARY_MODEL, FALLBACK_MODEL
+        
+        system_prompt = "You are a friendly financial mentor explaining stocks to a beginner."
+        user_content = build_followup_prompt(stock_data, analysis, question)
+        
+        # We don't need JSON here, just a plain text answer.
+        # We'll use Mistral directly for faster chat responses.
+        try:
+            answer = _call_openrouter(FALLBACK_MODEL, system_prompt, user_content)
+        except:
+            # Fallback to Deepseek if Mistral fails
+            answer = _call_openrouter(PRIMARY_MODEL, system_prompt, user_content)
+            
+        # Clean up <think> tags if Deepseek was used
+        if "<think>" in answer and "</think>" in answer:
+            answer = answer.split("</think>")[-1].strip()
+
+        response = jsonify({"answer": answer})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     # Railway typically uses the PORT environment variable
     port = int(os.environ.get("PORT", 5000))

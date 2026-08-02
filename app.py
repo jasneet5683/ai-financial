@@ -230,23 +230,37 @@ def api_analyze_fund():
         return response, 204
 
     data = request.json
-    ticker = data.get('ticker')
+    raw_ticker = data.get('ticker')
     question = data.get('question', '')
 
-    if not ticker:
-        return jsonify({"error": "Ticker is required"}), 400
+    if not raw_ticker:
+        return jsonify({"error": "Ticker or Fund Name is required"}), 400
 
     try:
+        import requests
         import yfinance as yf
         from advisor.ai_engine import analyze_mutual_fund
         
-        # Fetch data from Yahoo Finance
-        fund = yf.Ticker(ticker)
+        actual_ticker = raw_ticker
+
+        # If the user typed a name with spaces instead of a ticker, try to search Yahoo Finance for it
+        if " " in raw_ticker or not ("." in raw_ticker):
+            search_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={requests.utils.quote(raw_ticker)}&quotesCount=1&newsCount=0"
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            search_res = requests.get(search_url, headers=headers)
+            if search_res.status_code == 200:
+                search_data = search_res.json()
+                if search_data.get('quotes') and len(search_data['quotes']) > 0:
+                    actual_ticker = search_data['quotes'][0]['symbol']
+                    print(f"Mapped user input '{raw_ticker}' to ticker '{actual_ticker}'")
+
+        # Fetch data from Yahoo Finance using the actual ticker
+        fund = yf.Ticker(actual_ticker)
         fund_info = fund.info
         
         # Make sure it actually exists
         if 'longName' not in fund_info and 'shortName' not in fund_info:
-            return jsonify({"error": "Could not find data for that Mutual Fund ticker."}), 404
+             return jsonify({"error": f"Could not find data for '{raw_ticker}'. (Searched as {actual_ticker}). Try using the exact Yahoo Finance ticker (e.g., 0P0000YWL1.BO)."}), 404
 
         # Run AI Analysis
         analysis = analyze_mutual_fund(fund_info, question)
@@ -256,7 +270,7 @@ def api_analyze_fund():
             return jsonify(analysis), 500
 
         response = jsonify({
-            "stock_data": fund_info, # We return this so the chat box can use it later
+            "stock_data": fund_info, 
             "analysis": analysis
         })
         response.headers.add('Access-Control-Allow-Origin', '*')

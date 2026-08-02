@@ -9,11 +9,14 @@ import json
 import requests
 
 from advisor.prompt_builder import (
-    build_stock_system_prompt,
-    build_stock_user_prompt,
+    build_stock_system_prompt,     #to Analyze stocks
+    build_stock_user_prompt,       #to Analyze Stocks  
     build_portfolio_system_prompt,
     build_portfolio_user_prompt,
+    build_mf_system_prompt,       #to analyze Mutual Funds
+    build_mf_user_prompt,         #to analyze Mutual Funds
 )
+
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -119,4 +122,9 @@ def analyze_stock(stock_data: dict, user_question: str = None) -> dict:
 def analyze_portfolio(portfolio_data: list, user_question: str = None) -> dict:
     system_prompt = build_portfolio_system_prompt()
     user_content = build_portfolio_user_prompt(portfolio_data, user_question)
+    return _run_with_fallback(system_prompt, user_content)
+
+def analyze_mutual_fund(mf_data: dict, user_question: str = None) -> dict:
+    system_prompt = build_mf_system_prompt()
+    user_content = build_mf_user_prompt(mf_data, user_question)
     return _run_with_fallback(system_prompt, user_content)

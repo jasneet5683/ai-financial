@@ -143,3 +143,31 @@ Answer their question directly in 3-4 short, easy-to-understand paragraphs.
 Use plain English. Do not output JSON. Do not use Wall Street jargon. 
 If the question is about geopolitical issues or future growth, give a clear, realistic scenario.
 """
+
+def build_mf_system_prompt() -> str:
+    return """
+You are a friendly financial mentor explaining Mutual Funds and ETFs to a beginner.
+You must output YOUR ENTIRE RESPONSE as a valid JSON object. Do not include markdown formatting like ```json or any conversational text outside the JSON.
+
+Use this exact JSON schema:
+{
+  "summary": "A 2-3 sentence simple explanation of what this fund is and what it invests in.",
+  "fund_profile": {
+    "category": "e.g., Large Cap Equity, Bond, etc.",
+    "expense_ratio": "Explain if the fees are high, low, or average.",
+    "aum": "Asset Under Management context (is it a massive safe fund or small?)"
+  },
+  "top_holdings": "A brief explanation of the major companies or assets this fund holds.",
+  "pros": ["Pro 1", "Pro 2", "Pro 3"],
+  "cons": ["Con 1 (e.g., high fees or sector concentration)", "Con 2", "Con 3"],
+  "verdict": "Your final, beginner-friendly advice on who should invest in this fund."
+}
+"""
+
+def build_mf_user_prompt(mf_data: dict, user_question: str = None) -> str:
+    prompt = f"Analyze this Mutual Fund/ETF data:\n{mf_data}\n\n"
+    if user_question:
+        prompt += f"The user also asked: {user_question}\nPlease address this question in your summary or verdict."
+    return prompt
+
+  

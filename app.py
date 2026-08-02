@@ -219,6 +219,55 @@ def api_ask_stock_question():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/analyze-fund', methods=['POST', 'OPTIONS'])
+def api_analyze_fund():
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 204
+
+    data = request.json
+    ticker = data.get('ticker')
+    question = data.get('question', '')
+
+    if not ticker:
+        return jsonify({"error": "Ticker is required"}), 400
+
+    try:
+        import yfinance as yf
+        from advisor.ai_engine import analyze_mutual_fund
+        
+        # Fetch data from Yahoo Finance
+        fund = yf.Ticker(ticker)
+        fund_info = fund.info
+        
+        # Make sure it actually exists
+        if 'longName' not in fund_info and 'shortName' not in fund_info:
+            return jsonify({"error": "Could not find data for that Mutual Fund ticker."}), 404
+
+        # Run AI Analysis
+        analysis = analyze_mutual_fund(fund_info, question)
+        
+        # If the AI failed and returned an error dict
+        if "error" in analysis:
+            return jsonify(analysis), 500
+
+        response = jsonify({
+            "stock_data": fund_info, # We return this so the chat box can use it later
+            "analysis": analysis
+        })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     # Railway typically uses the PORT environment variable
     port = int(os.environ.get("PORT", 5000))

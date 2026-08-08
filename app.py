@@ -230,42 +230,58 @@ def api_analyze_fund():
         return response, 204
 
     data = request.json
-    raw_ticker = data.get('ticker')
+    # The user is now sending a plain text search query, not a ticker
+    search_query = data.get('ticker', '').strip() 
     question = data.get('question', '')
 
-    if not raw_ticker:
-        return jsonify({"error": "Ticker or Fund Name is required"}), 400
+    if not search_query:
+        return jsonify({"error": "Fund name is required"}), 400
 
     try:
         import requests
-        import yfinance as yf
         from advisor.ai_engine import analyze_mutual_fund
         
-        actual_ticker = raw_ticker
+        # 1. Search the official Indian Mutual Fund API (MFAPI)
+        search_url = f"https://api.mfapi.in/mf/search?q={requests.utils.quote(search_query)}"
+        search_res = requests.get(search_url).json()
 
-        # If the user typed a name with spaces instead of a ticker, try to search Yahoo Finance for it
-        if " " in raw_ticker or not ("." in raw_ticker):
-            search_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={requests.utils.quote(raw_ticker)}&quotesCount=1&newsCount=0"
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            search_res = requests.get(search_url, headers=headers)
-            if search_res.status_code == 200:
-                search_data = search_res.json()
-                if search_data.get('quotes') and len(search_data['quotes']) > 0:
-                    actual_ticker = search_data['quotes'][0]['symbol']
-                    print(f"Mapped user input '{raw_ticker}' to ticker '{actual_ticker}'")
+        if not search_res or len(search_res) == 0:
+            return jsonify({"error": f"Could not find any Indian Mutual Fund matching '{search_query}'. Try checking the spelling."}), 404
 
-        # Fetch data from Yahoo Finance using the actual ticker
-        fund = yf.Ticker(actual_ticker)
-        fund_info = fund.info
-        
-        # Make sure it actually exists
-        if 'longName' not in fund_info and 'shortName' not in fund_info:
-             return jsonify({"error": f"Could not find data for '{raw_ticker}'. (Searched as {actual_ticker}). Try using the exact Yahoo Finance ticker (e.g., 0P0000YWL1.BO)."}), 404
+        # 2. Try to find the "Direct" and "Growth" variant, otherwise just take the first result
+        best_match = search_res[0]
+        for item in search_res:
+            name_lower = item['schemeName'].lower()
+            if 'direct' in name_lower and 'growth' in name_lower:
+                best_match = item
+                break
 
-        # Run AI Analysis
+        # 3. Fetch the latest details and NAV (Price) for this specific fund
+        scheme_code = best_match['schemeCode']
+        detail_url = f"https://api.mfapi.in/mf/{scheme_code}"
+        detail_res = requests.get(detail_url).json()
+
+        meta = detail_res.get("meta", {})
+        fund_data = detail_res.get("data", [])
+
+        current_nav = fund_data[0]['nav'] if fund_data else "N/A"
+        nav_date = fund_data[0]['date'] if fund_data else "N/A"
+
+        # 4. Format the data so the frontend and AI can understand it easily
+        fund_info = {
+            "symbol": str(scheme_code),
+            "longName": meta.get("scheme_name", best_match['schemeName']),
+            "category": meta.get("scheme_category", "Mutual Fund"),
+            "fundHouse": meta.get("fund_house", "Unknown"),
+            "regularMarketPrice": current_nav,
+            "currency": "INR",
+            "navDate": nav_date,
+            "note_to_ai": "This is an Indian Mutual Fund. Please use your internal knowledge to estimate the Expense Ratio, AUM, and Top Holdings for this specific fund name."
+        }
+
+        # 5. Run AI Analysis
         analysis = analyze_mutual_fund(fund_info, question)
         
-        # If the AI failed and returned an error dict
         if "error" in analysis:
             return jsonify(analysis), 500
 
@@ -280,6 +296,7 @@ def api_analyze_fund():
         import traceback
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+
 
 
 if __name__ == '__main__':

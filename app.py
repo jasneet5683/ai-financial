@@ -115,19 +115,36 @@ def api_analyze_stock():
         hist = stock.history(period="1y")
         chart_data = {"dates": [], "prices": []}
         if not hist.empty:
-            # Format dates as strings and get closing prices
             chart_data["dates"] = [d.strftime('%Y-%m-%d') for d in hist.index]
             chart_data["prices"] = hist['Close'].tolist()
 
-        # 3. Run AI Analysis
-        analysis = analyze_stock(stock_info, question)
+        # 3. MAP THE DATA (This is what was missing! Convert Yahoo keys to our keys)
+        current_price = stock_info.get('currentPrice', stock_info.get('regularMarketPrice', 0))
+        prev_close = stock_info.get('previousClose', stock_info.get('regularMarketPreviousClose', current_price))
+        day_change = round(((current_price - prev_close) / prev_close) * 100, 2) if prev_close and prev_close > 0 else 0
+
+        mapped_stock_data = {
+            "ticker": yf_symbol,
+            "company_name": stock_info.get('longName', stock_info.get('shortName', symbol)),
+            "current_price": current_price,
+            "currency": stock_info.get('currency', 'INR' if exchange in ['NSE', 'BSE'] else 'USD'),
+            "day_change_pct": day_change,
+            "pe_ratio": stock_info.get('trailingPE', stock_info.get('forwardPE', 'N/A')),
+            "eps": stock_info.get('trailingEps', stock_info.get('forwardEps', 'N/A')),
+            "market_cap": stock_info.get('marketCap', 'N/A'),
+            "52_week_high": stock_info.get('fiftyTwoWeekHigh', 'N/A'),
+            "52_week_low": stock_info.get('fiftyTwoWeekLow', 'N/A')
+        }
+
+        # 4. Run AI Analysis using the MAPPED data
+        analysis = analyze_stock(mapped_stock_data, question)
         
         if "error" in analysis:
             return jsonify(analysis), 500
 
-        # 4. Return everything to the frontend
+        # 5. Return everything to the frontend
         response = jsonify({
-            "stock_data": stock_info, 
+            "stock_data": mapped_stock_data, 
             "chart_data": chart_data,
             "analysis": analysis
         })

@@ -226,32 +226,45 @@ def api_ask_stock_question():
         return jsonify({"error": "Question is required"}), 400
 
     try:
-        # We need a new prompt for follow-up questions
         from advisor.prompt_builder import build_followup_prompt
         from advisor.ai_engine import _call_openrouter, PRIMARY_MODEL, FALLBACK_MODEL
         
-        system_prompt = "You are a friendly financial mentor explaining stocks to a beginner."
+        # Explicitly tell the AI NOT to use JSON here
+        system_prompt = "You are a friendly financial mentor explaining stocks to a beginner. Reply with plain conversational text only. DO NOT output JSON. DO NOT wrap your answer in brackets or braces."
         user_content = build_followup_prompt(stock_data, analysis, question)
         
-        # We don't need JSON here, just a plain text answer.
-        # We'll use Mistral directly for faster chat responses.
         try:
             answer = _call_openrouter(FALLBACK_MODEL, system_prompt, user_content)
         except:
-            # Fallback to Deepseek if Mistral fails
             answer = _call_openrouter(PRIMARY_MODEL, system_prompt, user_content)
             
         # Clean up <think> tags if Deepseek was used
         if "<think>" in answer and "</think>" in answer:
             answer = answer.split("</think>")[-1].strip()
 
+        # --- FIX: Parse JSON if the AI still stubbornly returned it ---
+        if isinstance(answer, str):
+            clean_ans = answer.strip()
+            if clean_ans.startswith("```json"):
+                clean_ans = clean_ans.replace("```json", "").replace("```", "").strip()
+                
+            if clean_ans.startswith("{"):
+                try:
+                    parsed = json.loads(clean_ans)
+                    # Extract the text, falling back through common keys
+                    answer = parsed.get('response', parsed.get('answer', parsed.get('text', answer)))
+                except json.JSONDecodeError:
+                    pass # Not valid JSON, keep original string
+        # --------------------------------------------------------------
+
         response = jsonify({"answer": answer})
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response
 
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
-
 
 @app.route('/api/analyze-fund', methods=['POST', 'OPTIONS'])
 def api_analyze_fund():

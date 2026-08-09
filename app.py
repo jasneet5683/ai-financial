@@ -342,34 +342,107 @@ def api_analyze_fund():
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/market-movers', methods=['GET', 'OPTIONS'])
+@app.route('/api/market-movers', methods=['POST', 'OPTIONS'])
 def api_market_movers():
     if request.method == 'OPTIONS':
         response = jsonify({})
         response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
         return response, 204
 
     try:
         import yfinance as yf
         
-        # We use a curated list of top NIFTY 50/100 stocks to ensure high-quality data
-        # and guarantee they exist on the NSE (.NS)
-        symbols = [
-            "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS", 
-            "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "LT.NS", "TATAMOTORS.NS", 
-            "SUNPHARMA.NS", "MARUTI.NS", "TATASTEEL.NS", "BAJFINANCE.NS", "AXISBANK.NS",
-            "M&M.NS", "ASIANPAINT.NS", "HCLTECH.NS", "NTPC.NS", "KOTAKBANK.NS",
-            "WIPRO.NS", "ONGC.NS", "POWERGRID.NS", "HINDUNILVR.NS", "ADANIENT.NS"
-        ]
+        # Get the sector from the request (default to NIFTY_50)
+        data = request.get_json() or {}
+        sector = data.get('sector', 'NIFTY_50')
+        
+        # Define all sectors with their stock symbols
+        sectors_data = {
+            'NIFTY_50': {
+                'name': 'NIFTY 50',
+                'symbols': [
+                    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS",
+                    "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "LT.NS", "TATAMOTORS.NS",
+                    "SUNPHARMA.NS", "MARUTI.NS", "TATASTEEL.NS", "BAJFINANCE.NS", "AXISBANK.NS",
+                    "M&M.NS", "ASIANPAINT.NS", "HCLTECH.NS", "NTPC.NS", "KOTAKBANK.NS",
+                    "WIPRO.NS", "ONGC.NS", "POWERGRID.NS", "HINDUNILVR.NS", "ADANIENT.NS",
+                    "BAJAJFINSV.NS", "JSWSTEEL.NS", "BPCL.NS", "GAIL.NS", "ULTRACEMCO.NS",
+                    "BRITANNIA.NS", "NESTLEIND.NS", "DIVISLAB.NS", "CIPLA.NS", "DRREDDY.NS",
+                    "EICHERMOT.NS", "HEROMOTOCO.NS", "BOSCHIND.NS", "TITAN.NS", "SBICARD.NS",
+                    "INDIGO.NS", "LTIM.NS", "MNDAWORK.NS", "TECHM.NS", "BAJAJHLDNG.NS",
+                    "IDFCBANK.NS", "APOLLOHOSP.NS", "BIOCON.NS", "SIEMENSIND.NS", "LUPIN.NS"
+                ]
+            },
+            'PETRO': {
+                'name': 'Petroleum & Energy',
+                'symbols': [
+                    "RELIANCE.NS", "ONGC.NS", "BPCL.NS", "HPCL.NS", "IOC.NS",
+                    "GAIL.NS", "NTPC.NS", "POWERGRID.NS", "DLF.NS", "ADANIGREEN.NS",
+                    "ADANIPOWER.NS", "TORNTPHARM.NS", "CUMMINSIND.NS", "ABB.NS", "SIEMENSIND.NS",
+                    "BHEL.NS", "SJVN.NS", "NHPC.NS", "NATIONALHYDRO.NS", "INDIANOIL.NS"
+                ]
+            },
+            'PHARMA': {
+                'name': 'Pharmaceuticals',
+                'symbols': [
+                    "SUNPHARMA.NS", "CIPLA.NS", "DRREDDY.NS", "LUPIN.NS", "DIVISLAB.NS",
+                    "BIOCON.NS", "TORNTPHARM.NS", "AUROPHARM.NS", "ZYDUSLIFE.NS", "AUROPHARMA.NS",
+                    "APOLLOHOSP.NS", "FORTIS.NS", "MAXHEALTH.NS", "THYROCARE.NS", "PFIZER.NS",
+                    "GLAXOSMITH.NS", "LAURUS.NS", "KALYANIFRGE.NS", "MANKIND.NS", "NATCPHARMA.NS"
+                ]
+            },
+            'AI_TECH': {
+                'name': 'AI & Tech',
+                'symbols': [
+                    "TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "LTIM.NS",
+                    "TECHM.NS", "MPHASIS.NS", "PERSISTENT.NS", "COFORGE.NS", "SONACOMS.NS",
+                    "MINDTREE.NS", "KPITTECH.NS", "PENIND.NS", "NAUKRI.NS", "ZOMATO.NS",
+                    "PAYTM.NS", "INDIANB.NS", "CRESCENT.NS", "JSWINFRA.NS", "IITM.NS"
+                ]
+            },
+            'GREEN_ENERGY': {
+                'name': 'Green Energy',
+                'symbols': [
+                    "ADANIGREEN.NS", "ADANIPOWER.NS", "NTPC.NS", "POWERGRID.NS", "NHPC.NS",
+                    "SJVN.NS", "NATIONALHYDRO.NS", "RELIANCE.NS", "TORNTPHARM.NS", "SIEMENSIND.NS",
+                    "ABB.NS", "SUZLON.NS", "RENUKA.NS", "TATAPOWER.NS", "WESCO.NS",
+                    "CUMMINSIND.NS", "TESLA.NS", "EXIDEIND.NS", "GENSOL.NS", "MOIL.NS"
+                ]
+            },
+            'FINANCE': {
+                'name': 'Banking & Finance',
+                'symbols': [
+                    "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "AXISBANK.NS", "KOTAKBANK.NS",
+                    "IDFCBANK.NS", "INDUSIND.NS", "YESBANK.NS", "FEDERALBNK.NS", "HDFC.NS",
+                    "ICICIPRULI.NS", "BAJAJFINSV.NS", "BAJFINANCE.NS", "LT.NS", "SBICARD.NS",
+                    "SBILIFE.NS", "MUTHOOTFIN.NS", "MANAPPURAM.NS", "CHOLAFIN.NS", "MOTILALOFS.NS"
+                ]
+            },
+            'FINTECH': {
+                'name': 'FinTech & Payments',
+                'symbols': [
+                    "PAYTM.NS", "NYKAA.NS", "BEPHL.NS", "ZOMATO.NS", "POLICYBZR.NS",
+                    "SBICARD.NS", "ICICIBANK.NS", "HDFCBANK.NS", "AXISBANK.NS", "INDIGO.NS",
+                    "BHARTIARTL.NS", "ZEEL.NS", "SUNTVNEXT.NS", "OFSS.NS", "SRTRANSFIN.NS",
+                    "IDFCBANK.NS", "YESBANK.NS", "FEDERALBNK.NS", "INDIANB.NS", "MSWIL.NS"
+                ]
+            }
+        }
+        
+        # Get the stocks for the selected sector
+        if sector not in sectors_data:
+            return jsonify({"error": f"Unknown sector: {sector}"}), 400
+        
+        sector_info = sectors_data[sector]
+        symbols = sector_info['symbols']
         
         tickers = yf.Tickers(" ".join(symbols))
         movers = []
         
         for sym in symbols:
             try:
-                # We use the standard info dictionary to get the shortName
                 info = tickers.tickers[sym].info
                 
                 current_price = info.get('currentPrice', info.get('regularMarketPrice'))
@@ -388,7 +461,7 @@ def api_market_movers():
                 continue
         
         if not movers:
-            return jsonify({"error": "No market data available"}), 404
+            return jsonify({"error": "No market data available for this sector"}), 404
             
         # Sort by percentage change
         movers.sort(key=lambda x: x["change"], reverse=True)
@@ -396,9 +469,13 @@ def api_market_movers():
         # Get top 5 Gainers and top 5 Losers
         gainers = movers[:5]
         losers = movers[-5:]
-        losers.sort(key=lambda x: x["change"]) # Sort losers so most negative is first
+        losers.sort(key=lambda x: x["change"])
         
-        response = jsonify({"gainers": gainers, "losers": losers})
+        response = jsonify({
+            "sector": sector_info['name'],
+            "gainers": gainers,
+            "losers": losers
+        })
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response
 

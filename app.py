@@ -75,61 +75,69 @@ def index():
 
 # --- API ENDPOINTS ---
 
-@app.route('/api/analyze-stock', methods=['POST'])
+@app.route('/api/analyze-stock', methods=['POST', 'OPTIONS'])
 def api_analyze_stock():
-    """
-    Analyzes a specific stock.
-    JSON input: { "symbol": "TCS", "exchange": "NSE", "question": "optional" }
-    """
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 204
+
+    data = request.json
+    symbol = data.get('symbol', '').strip().upper()
+    exchange = data.get('exchange', 'NSE')
+    question = data.get('question', '')
+
+    if not symbol:
+        return jsonify({"error": "Symbol is required"}), 400
+
+    # Format the symbol based on the exchange (for Yahoo Finance)
+    if exchange == 'NSE':
+        yf_symbol = f"{symbol}.NS"
+    elif exchange == 'BSE':
+        yf_symbol = f"{symbol}.BO"
+    else:
+        yf_symbol = symbol
+
     try:
-        data = request.json
-        raw_input = data.get('symbol') # The user might type "Tata Motors"
-        exchange = data.get('exchange', 'NSE')
-        user_question = data.get('question')
+        import yfinance as yf
+        from advisor.ai_engine import analyze_stock
+        
+        # 1. Initialize the stock object
+        stock = yf.Ticker(yf_symbol)
+        stock_info = stock.info
+        
+        if 'longName' not in stock_info and 'shortName' not in stock_info:
+            return jsonify({"error": f"Could not find data for {yf_symbol}"}), 404
 
-        if not raw_input:
-            return jsonify({"error": "Company name or symbol is required"}), 400
-
-    # MAGIC HAPPENS HERE: Convert company name to exact symbol
-        symbol = resolve_company_to_symbol(raw_input, exchange)
-        print(f"Resolved user input '{raw_input}' to symbol '{symbol}'")
-
-
-        if not symbol:
-            return jsonify({"error": "Stock symbol is required"}), 400
-
-        # 1. Fetch live data
-        stock_live_data = get_stock_data(symbol, exchange)
-
-        # --- NEW: Fetch 1-year historical data for the chart ---
+        # 2. Fetch 1-year historical data for the chart
         hist = stock.history(period="1y")
         chart_data = {"dates": [], "prices": []}
         if not hist.empty:
+            # Format dates as strings and get closing prices
             chart_data["dates"] = [d.strftime('%Y-%m-%d') for d in hist.index]
             chart_data["prices"] = hist['Close'].tolist()
-        
-        if "error" in stock_live_data:
-            return jsonify(stock_live_data), 500
 
-        # 2. Get AI Analysis
-        analysis = analyze_stock(stock_live_data, user_question)
+        # 3. Run AI Analysis
+        analysis = analyze_stock(stock_info, question)
         
-        return jsonify({
-            "stock_data": stock_live_data,
+        if "error" in analysis:
+            return jsonify(analysis), 500
+
+        # 4. Return everything to the frontend
+        response = jsonify({
+            "stock_data": stock_info, 
             "chart_data": chart_data,
             "analysis": analysis
         })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
     except Exception as e:
-        # Get the full error trace
-        error_details = traceback.format_exc()
-        print(error_details) # This prints to Railway logs
-        
-        # Send the exact error back to the frontend
-        return jsonify({
-            "error": "Server crashed. See details below.",
-            "details": str(e),
-            "traceback": error_details 
-        }), 500
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
      
 @app.route('/api/analyze-portfolio', methods=['POST'])
 def api_analyze_portfolio():

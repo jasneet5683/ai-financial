@@ -12,6 +12,7 @@ from flask_cors import CORS
 #from dotenv import load_dotenv
 import traceback # Add this at the top with your other imports
 import requests 
+import json
 # Load environment variables from .env
 load_dotenv()
 

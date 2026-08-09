@@ -100,6 +100,13 @@ def api_analyze_stock():
 
         # 1. Fetch live data
         stock_live_data = get_stock_data(symbol, exchange)
+
+        # --- NEW: Fetch 1-year historical data for the chart ---
+        hist = stock.history(period="1y")
+        chart_data = {"dates": [], "prices": []}
+        if not hist.empty:
+            chart_data["dates"] = [d.strftime('%Y-%m-%d') for d in hist.index]
+            chart_data["prices"] = hist['Close'].tolist()
         
         if "error" in stock_live_data:
             return jsonify(stock_live_data), 500
@@ -109,6 +116,7 @@ def api_analyze_stock():
         
         return jsonify({
             "stock_data": stock_live_data,
+            "chart_data": chart_data,
             "analysis": analysis
         })
     except Exception as e:
@@ -264,6 +272,17 @@ def api_analyze_fund():
         meta = detail_res.get("meta", {})
         fund_data = detail_res.get("data", [])
 
+        # --- NEW: Format 1-year historical data for the chart ---
+        chart_data = {"dates": [], "prices": []}
+        if fund_data:
+            # The API returns newest first. Take the last ~250 trading days (1 year) and reverse it
+            history_subset = fund_data[:250]
+            history_subset.reverse()
+            for item in history_subset:
+                chart_data["dates"].append(item['date'])
+                # Convert NAV string to float
+                chart_data["prices"].append(float(item['nav']))
+
         current_nav = fund_data[0]['nav'] if fund_data else "N/A"
         nav_date = fund_data[0]['date'] if fund_data else "N/A"
 
@@ -287,6 +306,7 @@ def api_analyze_fund():
 
         response = jsonify({
             "stock_data": fund_info, 
+            "chart_data": chart_data,
             "analysis": analysis
         })
         response.headers.add('Access-Control-Allow-Origin', '*')

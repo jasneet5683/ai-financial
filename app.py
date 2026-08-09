@@ -353,56 +353,51 @@ def api_market_movers():
 
     try:
         import yfinance as yf
-        import requests
-
-        # Yahoo Finance provides a hidden API for market movers. 
-        # We will use the Indian market (scrIds: day_gainers_in, day_losers_in)
-        headers = {'User-Agent': 'Mozilla/5.0'}
         
-        # Fetch Gainers
-        gainers_url = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=true&lang=en-IN&region=IN&scrIds=day_gainers_in&count=5"
-        g_res = requests.get(gainers_url, headers=headers).json()
+        # We use a curated list of top NIFTY 50/100 stocks to ensure high-quality data
+        # and guarantee they exist on the NSE (.NS)
+        symbols = [
+            "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS", 
+            "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "LT.NS", "TATAMOTORS.NS", 
+            "SUNPHARMA.NS", "MARUTI.NS", "TATASTEEL.NS", "BAJFINANCE.NS", "AXISBANK.NS",
+            "M&M.NS", "ASIANPAINT.NS", "HCLTECH.NS", "NTPC.NS", "KOTAKBANK.NS",
+            "WIPRO.NS", "ONGC.NS", "POWERGRID.NS", "HINDUNILVR.NS", "ADANIENT.NS"
+        ]
         
-        gainers = []
-        if 'finance' in g_res and 'result' in g_res['finance'] and len(g_res['finance']['result']) > 0:
-            quotes = g_res['finance']['result'][0].get('quotes', [])
-            for q in quotes:
-                gainers.append({
-                    "symbol": q.get('symbol', '').replace('.NS', '').replace('.BO', ''),
-                    "price": q.get('regularMarketPrice', {}).get('fmt', '0'),
-                    "change_pct": q.get('regularMarketChangePercent', {}).get('fmt', '0%'),
-                    "raw_pct": q.get('regularMarketChangePercent', {}).get('raw', 0)
-                })
-
-        # Fetch Losers
-        losers_url = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=true&lang=en-IN&region=IN&scrIds=day_losers_in&count=5"
-        l_res = requests.get(losers_url, headers=headers).json()
+        tickers = yf.Tickers(" ".join(symbols))
+        movers = []
         
-        losers = []
-        if 'finance' in l_res and 'result' in l_res['finance'] and len(l_res['finance']['result']) > 0:
-            quotes = l_res['finance']['result'][0].get('quotes', [])
-            for q in quotes:
-                losers.append({
-                    "symbol": q.get('symbol', '').replace('.NS', '').replace('.BO', ''),
-                    "price": q.get('regularMarketPrice', {}).get('fmt', '0'),
-                    "change_pct": q.get('regularMarketChangePercent', {}).get('fmt', '0%'),
-                    "raw_pct": q.get('regularMarketChangePercent', {}).get('raw', 0)
-                })
-
-        # Fallback if Yahoo API fails/is empty for India currently
-        if not gainers:
-            gainers = [
-                {"symbol": "RELIANCE", "price": "2950", "change_pct": "+2.5%", "raw_pct": 2.5},
-                {"symbol": "TCS", "price": "4100", "change_pct": "+1.8%", "raw_pct": 1.8},
-                {"symbol": "INFY", "price": "1650", "change_pct": "+1.2%", "raw_pct": 1.2}
-            ]
-        if not losers:
-            losers = [
-                {"symbol": "HDFCBANK", "price": "1420", "change_pct": "-1.5%", "raw_pct": -1.5},
-                {"symbol": "WIPRO", "price": "480", "change_pct": "-2.1%", "raw_pct": -2.1},
-                {"symbol": "ITC", "price": "410", "change_pct": "-0.8%", "raw_pct": -0.8}
-            ]
-
+        for sym in symbols:
+            try:
+                # We use the standard info dictionary to get the shortName
+                info = tickers.tickers[sym].info
+                
+                current_price = info.get('currentPrice', info.get('regularMarketPrice'))
+                prev_close = info.get('previousClose', info.get('regularMarketPreviousClose'))
+                short_name = info.get('shortName', sym.replace('.NS', ''))
+                
+                if current_price and prev_close:
+                    change_pct = ((current_price - prev_close) / prev_close) * 100
+                    movers.append({
+                        "symbol": sym.replace(".NS", ""),
+                        "name": short_name,
+                        "price": round(current_price, 2),
+                        "change": round(change_pct, 2)
+                    })
+            except Exception:
+                continue
+        
+        if not movers:
+            return jsonify({"error": "No market data available"}), 404
+            
+        # Sort by percentage change
+        movers.sort(key=lambda x: x["change"], reverse=True)
+        
+        # Get top 5 Gainers and top 5 Losers
+        gainers = movers[:5]
+        losers = movers[-5:]
+        losers.sort(key=lambda x: x["change"]) # Sort losers so most negative is first
+        
         response = jsonify({"gainers": gainers, "losers": losers})
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response

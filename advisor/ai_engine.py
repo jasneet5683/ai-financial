@@ -36,22 +36,38 @@ def _call_openrouter(model: str, system_prompt: str, user_content: str) -> str:
         "HTTP-Referer": "https://ai-stock.app",
         "X-Title": "Ai-Stock Analyzer"
     }
+    
+    # We will remove "response_format": {"type": "json_object"} 
+    # because not all free models support it and it causes API rejections.
     payload = {
         "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
         ],
-        "temperature": 0.4,
-        # Force JSON response. Crucial when using openrouter/auto so it picks a JSON-capable model.
-        "response_format": {"type": "json_object"} 
+        "temperature": 0.4
     }
     
-    # DeepSeek R1 takes a long time to "think". Increased timeout to 180 seconds.
-    response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=180)
-    response.raise_for_status()
-    result = response.json()
-    return result["choices"][0]["message"]["content"]
+    try:
+        response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=180)
+        
+        # If OpenRouter returns an error, print it so you can see it in Railway logs
+        if response.status_code != 200:
+            print(f"OpenRouter Error: {response.status_code} - {response.text}")
+            
+        response.raise_for_status()
+        result = response.json()
+        
+        # Safely extract choices
+        if "choices" not in result:
+            print(f"API Error: 'choices' missing. Full response: {result}")
+            raise KeyError("'choices' not found in response")
+            
+        return result["choices"][0]["message"]["content"]
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {str(e)}")
+        raise
 
 
 def _extract_json(raw_text: str) -> dict:

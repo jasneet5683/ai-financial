@@ -364,58 +364,58 @@ def api_market_movers():
                 'name': 'NIFTY 50',
                 'symbols': [
                     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS",
-                    "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "LT.NS", "TATAMOTORS.NS",
+                    "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "LT.NS", "TMPV.NS", # Replaced TATAMOTORS with TMPV
                     "SUNPHARMA.NS", "MARUTI.NS", "TATASTEEL.NS", "BAJFINANCE.NS", "AXISBANK.NS",
                     "M&M.NS", "ASIANPAINT.NS", "HCLTECH.NS", "NTPC.NS", "KOTAKBANK.NS",
                     "WIPRO.NS", "ONGC.NS", "POWERGRID.NS", "HINDUNILVR.NS", "ADANIENT.NS",
                     "BAJAJFINSV.NS", "JSWSTEEL.NS", "BPCL.NS", "GAIL.NS", "ULTRACEMCO.NS",
                     "BRITANNIA.NS", "NESTLEIND.NS", "DIVISLAB.NS", "CIPLA.NS", "DRREDDY.NS",
-                    "EICHERMOT.NS", "HEROMOTOCO.NS", "BOSCHIND.NS", "TITAN.NS", "SBICARD.NS",
-                    "INDIGO.NS", "LTIM.NS", "MNDAWORK.NS", "TECHM.NS", "BAJAJHLDNG.NS",
-                    "IDFCBANK.NS", "APOLLOHOSP.NS", "BIOCON.NS", "SIEMENSIND.NS", "LUPIN.NS"
+                    "EICHERMOT.NS", "HEROMOTOCO.NS", "BOSCHLTD.NS", "TITAN.NS", "SBICARD.NS", # Replaced BOSCHIND with BOSCHLTD
+                    "INDIGO.NS", "LTIMINDTR.NS", "TECHM.NS", "BAJAJHLDNG.NS", # Replaced LTIM with LTIMINDTR
+                    "IDFCFIRSTB.NS", "APOLLOHOSP.NS", "BIOCON.NS", "SIEMENS.NS", "LUPIN.NS" # Replaced IDFCBANK with IDFCFIRSTB, SIEMENSIND with SIEMENS
                 ]
             },
             'PETRO': {
                 'name': 'Petroleum & Energy',
                 'symbols': [
-                    "RELIANCE.NS", "ONGC.NS", "BPCL.NS", "HPCL.NS", "IOC.NS",
+                    "RELIANCE.NS", "ONGC.NS", "BPCL.NS", "HINDPETRO.NS", "IOC.NS", # Replaced HPCL with HINDPETRO
                     "GAIL.NS", "NTPC.NS", "POWERGRID.NS", "DLF.NS", "ADANIGREEN.NS",
-                    "ADANIPOWER.NS", "TORNTPHARM.NS", "CUMMINSIND.NS", "ABB.NS", "SIEMENSIND.NS",
-                    "BHEL.NS", "SJVN.NS", "NHPC.NS", "NATIONALHYDRO.NS", "INDIANOIL.NS"
+                    "ADANIPOWER.NS", "TORNTPHARM.NS", "CUMMINSIND.NS", "ABB.NS", "SIEMENS.NS",
+                    "BHEL.NS", "SJVN.NS", "NHPC.NS", "NHPC.NS" # Replaced NATIONALHYDRO with NHPC
                 ]
             },
             'PHARMA': {
                 'name': 'Pharmaceuticals',
                 'symbols': [
                     "SUNPHARMA.NS", "CIPLA.NS", "DRREDDY.NS", "LUPIN.NS", "DIVISLAB.NS",
-                    "BIOCON.NS", "TORNTPHARM.NS", "AUROPHARM.NS", "ZYDUSLIFE.NS", "AUROPHARMA.NS",
-                    "APOLLOHOSP.NS", "FORTIS.NS", "MAXHEALTH.NS", "THYROCARE.NS", "PFIZER.NS",
-                    "GLAXOSMITH.NS", "LAURUS.NS", "KALYANIFRGE.NS", "MANKIND.NS", "NATCPHARMA.NS"
+                    "BIOCON.NS", "TORNTPHARM.NS", "AUROPHARMA.NS", "ZYDUSLIFE.NS",
+                    "APOLLOHOSP.NS", "FORTIS.NS", "MAXHEALTH.NS", "PFIZER.NS",
+                    "GLAXO.NS", "LAURUSLABS.NS", "MANKIND.NS", "NATCOPHARM.NS" # Cleaned up various pharma names
                 ]
             },
             'AI_TECH': {
                 'name': 'AI & Tech',
                 'symbols': [
-                    "TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "LTIM.NS",
-                    "TECHM.NS", "MPHASIS.NS", "PERSISTENT.NS", "COFORGE.NS", "SONACOMS.NS",
-                    "MINDTREE.NS", "KPITTECH.NS", "PENIND.NS", "NAUKRI.NS", "ZOMATO.NS",
-                    "PAYTM.NS", "INDIANB.NS", "CRESCENT.NS", "JSWINFRA.NS", "IITM.NS"
+                    "TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "LTIMINDTR.NS",
+                    "TECHM.NS", "MPHASIS.NS", "PERSISTENT.NS", "COFORGE.NS",
+                    "KPITTECH.NS", "NAUKRI.NS", "ZOMATO.NS",
+                    "PAYTM.NS", "ZENTEC.NS" # Removed unrecognised/delisted AI/Tech stocks
                 ]
             },
             'GREEN_ENERGY': {
                 'name': 'Green Energy',
                 'symbols': [
                     "ADANIGREEN.NS", "ADANIPOWER.NS", "NTPC.NS", "POWERGRID.NS", "NHPC.NS",
-                    "SJVN.NS", "NATIONALHYDRO.NS", "RELIANCE.NS", "TORNTPHARM.NS", "SIEMENSIND.NS",
-                    "ABB.NS", "SUZLON.NS", "RENUKA.NS", "TATAPOWER.NS", "WESCO.NS",
-                    "CUMMINSIND.NS", "TESLA.NS", "EXIDEIND.NS", "GENSOL.NS", "MOIL.NS"
+                    "SJVN.NS", "RELIANCE.NS", "SIEMENS.NS",
+                    "ABB.NS", "SUZLON.NS", "RENUKA.NS", "TATAPOWER.NS",
+                    "CUMMINSIND.NS", "EXIDEIND.NS", "GENSOL.NS", "MOIL.NS"
                 ]
             },
             'FINANCE': {
                 'name': 'Banking & Finance',
                 'symbols': [
                     "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "AXISBANK.NS", "KOTAKBANK.NS",
-                    "IDFCBANK.NS", "INDUSIND.NS", "YESBANK.NS", "FEDERALBNK.NS", "HDFC.NS",
+                    "IDFCFIRSTB.NS", "INDUSINDBK.NS", "YESBANK.NS", "FEDERALBNK.NS", # Replaced INDUSIND with INDUSINDBK
                     "ICICIPRULI.NS", "BAJAJFINSV.NS", "BAJFINANCE.NS", "LT.NS", "SBICARD.NS",
                     "SBILIFE.NS", "MUTHOOTFIN.NS", "MANAPPURAM.NS", "CHOLAFIN.NS", "MOTILALOFS.NS"
                 ]
@@ -423,13 +423,14 @@ def api_market_movers():
             'FINTECH': {
                 'name': 'FinTech & Payments',
                 'symbols': [
-                    "PAYTM.NS", "NYKAA.NS", "BEPHL.NS", "ZOMATO.NS", "POLICYBZR.NS",
+                    "PAYTM.NS", "NYKAA.NS", "ZOMATO.NS", "POLICYBZR.NS",
                     "SBICARD.NS", "ICICIBANK.NS", "HDFCBANK.NS", "AXISBANK.NS", "INDIGO.NS",
-                    "BHARTIARTL.NS", "ZEEL.NS", "SUNTVNEXT.NS", "OFSS.NS", "SRTRANSFIN.NS",
-                    "IDFCBANK.NS", "YESBANK.NS", "FEDERALBNK.NS", "INDIANB.NS", "MSWIL.NS"
+                    "BHARTIARTL.NS", "ZEEL.NS", "OFSS.NS", "SHRIRAMFIN.NS", # Replaced SRTRANSFIN with SHRIRAMFIN
+                    "IDFCFIRSTB.NS", "YESBANK.NS", "FEDERALBNK.NS", "INDIANB.NS"
                 ]
             }
         }
+
         
         # Get the stocks for the selected sector
         if sector not in sectors_data:

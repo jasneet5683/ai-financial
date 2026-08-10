@@ -145,32 +145,37 @@ If the question is about geopolitical issues or future growth, give a clear, rea
 """
 
 def build_mf_system_prompt() -> str:
-    return """
-You are a friendly financial mentor explaining Mutual Funds and ETFs to a beginner.
-You will receive the exact Fund Name, Category, and current NAV. You must use your own internal knowledge to determine the fund's general Expense Ratio, AUM size, and Top Holdings based on the provided Fund Name.
+    return """You are an objective financial data analyzer. 
+Your task is to analyze the provided Mutual Fund data and return a purely factual summary in strictly valid JSON format.
+Do not provide personal financial advice. Do not include markdown formatting, backticks, or conversational text.
 
-You must output YOUR ENTIRE RESPONSE as a valid JSON object. Do not include markdown formatting like ```json or any conversational text outside the JSON.
-
-Use this exact JSON schema:
+You MUST return EXACTLY this JSON structure, and nothing else:
 {
-  "summary": "A 2-3 sentence simple explanation of what this fund is and what it invests in.",
+  "summary": "A 2-3 sentence objective overview of what this fund is.",
   "fund_profile": {
-    "category": "e.g., Large Cap Equity, Bond, etc.",
-    "expense_ratio": "State the approximate expense ratio and whether it is high, low, or average.",
-    "aum": "Approximate Asset Under Management (AUM) context (is it a massive safe fund or small?)"
+    "category": "The fund category",
+    "expense_ratio": "Brief factual context on the expense ratio",
+    "aum": "Brief factual context on the AUM size"
   },
-  "top_holdings": "A brief explanation of the major companies, sectors, or assets this specific fund typically holds.",
-  "pros": ["Pro 1", "Pro 2", "Pro 3"],
-  "cons": ["Con 1 (e.g., high fees or sector concentration)", "Con 2", "Con 3"],
-  "verdict": "Your final, beginner-friendly advice on who should invest in this fund."
-}
-"""
-
+  "pros": [
+    "Factual positive point 1",
+    "Factual positive point 2"
+  ],
+  "cons": [
+    "Factual risk or negative point 1",
+    "Factual risk or negative point 2"
+  ],
+  "verdict": "A brief objective conclusion based on the data provided."
+}"""
 
 def build_mf_user_prompt(mf_data: dict, user_question: str = None) -> str:
-    prompt = f"Analyze this Mutual Fund/ETF data:\n{mf_data}\n\n"
-    if user_question:
-        prompt += f"The user also asked: {user_question}\nPlease address this question in your summary or verdict."
-    return prompt
+    prompt = f"""Please analyze the following mutual fund data objectively:
 
-  
+Fund Data:
+{mf_data}
+"""
+    if user_question:
+        prompt += f"\nUser Query: {user_question}\nAddress this query factually in your summary."
+        
+    prompt += "\n\nReturn ONLY the JSON. No other text."
+    return prompt

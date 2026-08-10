@@ -6,3 +6,4 @@ gspread
 google-auth
 flask-cors
 mftool
+duckduckgo-search

@@ -1,5 +1,5 @@
 from mftool import Mftool
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 import re
 
 def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):

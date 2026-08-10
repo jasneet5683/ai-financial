@@ -1,10 +1,27 @@
-import signal
 import threading
+import signal
+
+# -------------------------------------------------------
+# SIGNAL PATCH: mstarpy calls signal.signal() at import
+# time which crashes on non-main threads. We patch it
+# to do nothing so it safely skips that call.
+# -------------------------------------------------------
+_original_signal = signal.signal
+
+def _safe_signal(signum, handler):
+    try:
+        return _original_signal(signum, handler)
+    except ValueError:
+        # Silently ignore "signal only works in main thread" error
+        pass
+
+signal.signal = _safe_signal
+
 
 def fetch_mstarpy_fund_details(fund_name: str):
     """
     Fetches deep mutual fund metrics using mstarpy (Morningstar data).
-    Thread-safe wrapper to handle Flask worker thread signal issue.
+    Returns a dictionary with AUM, Expense Ratio, Top 3 Holdings, and Historical Returns.
     """
     mf_data = {
         "aum": "N/A",
@@ -15,11 +32,10 @@ def fetch_mstarpy_fund_details(fund_name: str):
         "fund_category": "N/A"
     }
 
-    result_container = {"data": mf_data, "error": None}
+    result_container = {"data": mf_data}
 
     def _fetch():
         try:
-            # Import mstarpy INSIDE the thread to avoid signal issues
             import mstarpy
 
             print(f"[mstarpy] Searching Morningstar for: {fund_name}")
@@ -80,18 +96,17 @@ def fetch_mstarpy_fund_details(fund_name: str):
                 print(f"[mstarpy] Error fetching returns: {e}")
 
             result_container["data"] = mf_data
-            print(f"[mstarpy] Successfully fetched data for {fund_name}")
+            print(f"[mstarpy] Successfully fetched data: {mf_data}")
 
         except Exception as e:
-            print(f"[mstarpy] Critical error: {e}")
-            result_container["error"] = str(e)
+            print(f"[mstarpy] Critical error inside thread: {e}")
 
-    # Run mstarpy in a separate thread with a 15 second timeout
+    # Run in a separate thread with 20 second timeout
     thread = threading.Thread(target=_fetch)
     thread.start()
-    thread.join(timeout=15)
+    thread.join(timeout=20)
 
     if thread.is_alive():
-        print("[mstarpy] Timeout! Morningstar took too long to respond.")
+        print("[mstarpy] Timeout — Morningstar took too long.")
 
     return result_container["data"]

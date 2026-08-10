@@ -7,6 +7,7 @@ McKinsey/Bain-style analysis as validated JSON.
 import os
 import json
 import requests
+import re
 
 from advisor.prompt_builder import (
     build_stock_system_prompt,     #to Analyze stocks
@@ -81,10 +82,11 @@ def _extract_json(raw_text: str) -> dict:
     if "<think>" in text and "</think>" in text:
         text = text.split("</think>")[-1].strip()
         
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.lower().startswith("json"):
-            text = text[4:].strip()
+    # NEW FIX: Strip markdown code blocks (```json ... ```) using regex
+    # This safely handles variations like ```JSON, ``` json, or just ```
+    text = re.sub(r'^```[a-zA-Z]*\s*', '', text, flags=re.IGNORECASE | re.MULTILINE)
+    text = re.sub(r'```\s*$', '', text, flags=re.MULTILINE)
+    text = text.strip()
 
     # Try direct parse first
     try:
@@ -92,17 +94,20 @@ def _extract_json(raw_text: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # Fallback: extract first {...} block
+    # Fallback: extract everything between the first { and the last }
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
         try:
-            return json.loads(text[start:end + 1])
-        except json.JSONDecodeError:
-            pass
+            # We slice up to end + 1 to include the closing brace
+            clean_json_str = text[start:end + 1]
+            return json.loads(clean_json_str)
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse extracted JSON block: {clean_json_str}")
+            raise ValueError(f"Extracted block is invalid JSON: {str(e)}")
 
+    print(f"Raw text failed to parse:\n{raw_text}")
     raise ValueError("Could not parse valid JSON from model response")
-
 
 def _run_with_fallback(system_prompt: str, user_content: str) -> dict:
     """

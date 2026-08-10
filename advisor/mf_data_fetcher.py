@@ -38,8 +38,12 @@ def fetch_mstarpy_fund_details(fund_name: str):
         try:
             import mstarpy
 
-            print(f"[mstarpy] Searching Morningstar for: {fund_name}")
-            fund = mstarpy.Funds(term=fund_name, country="in")
+            # Clean up the fund name slightly for better Morningstar search results
+            clean_name = fund_name.replace(" - Direct Plan - Growth", "").replace(" Direct Growth", "")
+            print(f"[mstarpy] Searching Morningstar for: {clean_name}")
+            
+            # REMOVED country="in" to fix the unexpected keyword argument error
+            fund = mstarpy.Funds(term=clean_name)
 
             # Get Expense Ratio
             try:

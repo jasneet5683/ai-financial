@@ -277,7 +277,6 @@ def api_analyze_fund():
         return response, 204
 
     data = request.json
-    # The user is now sending a plain text search query, not a ticker
     search_query = data.get('ticker', '').strip() 
     question = data.get('question', '')
 
@@ -287,8 +286,9 @@ def api_analyze_fund():
     try:
         import requests
         from advisor.ai_engine import analyze_mutual_fund
+        from advisor.mf_data_fetcher import fetch_mstarpy_fund_details  # NEW IMPORT
         
-        # 1. Search the official Indian Mutual Fund API (MFAPI)
+        # 1. Search the official Indian Mutual Fund API (MFAPI) for NAV
         search_url = f"https://api.mfapi.in/mf/search?q={requests.utils.quote(search_query)}"
         search_res = requests.get(search_url).json()
 
@@ -311,33 +311,40 @@ def api_analyze_fund():
         meta = detail_res.get("meta", {})
         fund_data = detail_res.get("data", [])
 
-        # --- NEW: Format 1-year historical data for the chart ---
+        # --- Format 1-year historical data for the chart ---
         chart_data = {"dates": [], "prices": []}
         if fund_data:
-            # The API returns newest first. Take the last ~250 trading days (1 year) and reverse it
             history_subset = fund_data[:250]
             history_subset.reverse()
             for item in history_subset:
                 chart_data["dates"].append(item['date'])
-                # Convert NAV string to float
                 chart_data["prices"].append(float(item['nav']))
 
         current_nav = fund_data[0]['nav'] if fund_data else "N/A"
         nav_date = fund_data[0]['date'] if fund_data else "N/A"
 
-        # 4. Format the data so the frontend and AI can understand it easily
+        # 4. NEW: Fetch rich data from Morningstar using mstarpy
+        print(f"[app.py] Fetching mstarpy data for: {best_match['schemeName']}")
+        mstarpy_data = fetch_mstarpy_fund_details(best_match['schemeName'])
+
+        # 5. Format the data so the frontend and AI can understand it easily
         fund_info = {
             "symbol": str(scheme_code),
             "longName": meta.get("scheme_name", best_match['schemeName']),
-            "category": meta.get("scheme_category", "Mutual Fund"),
+            "category": mstarpy_data.get("fund_category", meta.get("scheme_category", "Mutual Fund")),
             "fundHouse": meta.get("fund_house", "Unknown"),
             "regularMarketPrice": current_nav,
             "currency": "INR",
             "navDate": nav_date,
-            "note_to_ai": "This is an Indian Mutual Fund. Please use your internal knowledge to estimate the Expense Ratio, AUM, and Top Holdings for this specific fund name."
+            # NEW: Add all the mstarpy metrics
+            "aum": mstarpy_data.get("aum", "N/A"),
+            "expense_ratio": mstarpy_data.get("expense_ratio", "N/A"),
+            "1y_return": mstarpy_data.get("1y_return", "N/A"),
+            "3y_return": mstarpy_data.get("3y_return", "N/A"),
+            "top_holdings": mstarpy_data.get("top_holdings", "N/A")
         }
 
-        # 5. Run AI Analysis
+        # 6. Run AI Analysis
         analysis = analyze_mutual_fund(fund_info, question)
         
         if "error" in analysis:

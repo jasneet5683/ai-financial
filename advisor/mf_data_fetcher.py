@@ -1,6 +1,6 @@
-import requests
-from bs4 import BeautifulSoup
 from mftool import Mftool
+from googlesearch import search
+import time
 
 def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
     mf_data = {
@@ -13,7 +13,7 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
 
     print(f"[mf_fetcher] Fetching data for: {fund_name}")
 
-    # 1. Get exact Category and Fund House from mftool (Very reliable for India)
+    # 1. Get exact Category and Fund House from mftool
     try:
         if scheme_code:
             obj = Mftool()
@@ -26,7 +26,7 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
     except Exception as e:
         print(f"[mf_fetcher] mftool error: {e}")
 
-    # 2. Scrape DuckDuckGo HTML directly (Bypasses the 'ddgs' library block)
+    # 2. Grab text from Google Search (highly reliable, bypasses DDG blocks)
     try:
         search_name = (
             fund_name
@@ -35,45 +35,35 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
             .replace(" Regular Plan", "")
             .strip()
         )
-        
-        # Formulate a highly specific query
+
         query = f'"{search_name}" mutual fund AUM expense ratio moneycontrol groww'
+        print(f"[mf_fetcher] Searching Google for: {query}")
         
-        url = "https://html.duckduckgo.com/html/"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
+        # We use advanced=True to get the title and the snippet descriptions
+        # We pause for 2 seconds to ensure Google doesn't block the Railway IP
+        results = search(query, num=3, stop=3, pause=2.0, advanced=True)
         
-        # POST request to the HTML search endpoint
-        response = requests.post(url, headers=headers, data={"q": query}, timeout=15)
-        
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            # Extract all search result snippets
-            snippets = soup.find_all(class_='result__snippet')
-            
-            if snippets:
-                # Combine the top 4 snippets into one text block for the AI
-                extracted_text = " | ".join([s.get_text(separator=" ", strip=True) for s in snippets[:4]])
-                mf_data["raw_search_text"] = extracted_text
-            else:
-                print("[mf_fetcher] No snippets found in DDG HTML.")
-        else:
-            print(f"[mf_fetcher] DDG blocked request. Status: {response.status_code}")
+        combined_text = ""
+        for r in results:
+            # googlesearch-python returns objects with .title and .description
+            title = getattr(r, 'title', '')
+            desc = getattr(r, 'description', '')
+            combined_text += f"{title}: {desc} | "
 
+        mf_data["raw_search_text"] = combined_text.strip()
+        
     except Exception as e:
-        print(f"[mf_fetcher] HTML Search error: {e}")
+        print(f"[mf_fetcher] Google Search error: {e}")
 
-    # 3. Fallback to ensure AI never fails completely
+    # 3. Fallback to ensure AI never fails
     if not mf_data["raw_search_text"] or len(mf_data["raw_search_text"]) < 20:
          mf_data["raw_search_text"] = (
              f"Basic Info: This is the {fund_name} managed by {mf_data['fund_house']}. "
              f"Category: {mf_data['fund_category']}. "
-             f"Live numerical data could not be fetched due to network blocking. "
+             f"Live numerical data could not be fetched. "
              f"Please write a summary based on the fund category."
          )
 
-    print(f"[mf_fetcher] Text sent to AI: {mf_data['raw_search_text'][:200]}...")
+    print(f"[mf_fetcher] Final text sent to AI: {mf_data['raw_search_text'][:250]}...")
     
     return mf_data

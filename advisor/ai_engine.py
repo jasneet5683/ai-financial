@@ -1,7 +1,7 @@
 """
 ai_engine.py
-Sends structured stock/portfolio data to OpenRouter and returns
-McKinsey/Bain-style analysis as validated JSON.
+Sends structured stock/portfolio/mutual fund data to NVIDIA NIM (Primary) 
+or OpenRouter (Fallback) and returns McKinsey/Bain-style analysis as validated JSON.
 """
 
 import os
@@ -10,56 +10,74 @@ import requests
 import re
 
 from advisor.prompt_builder import (
-    build_stock_system_prompt,     #to Analyze stocks
-    build_stock_user_prompt,       #to Analyze Stocks  
+    build_stock_system_prompt,     
+    build_stock_user_prompt,         
     build_portfolio_system_prompt,
     build_portfolio_user_prompt,
-    build_mf_system_prompt,       #to analyze Mutual Funds
-    build_mf_user_prompt,         #to analyze Mutual Funds
+    build_mf_system_prompt,       
+    build_mf_user_prompt,         
 )
 
-
+# API Keys
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
+# Primary: NVIDIA Free API (Requires NVIDIA_API_KEY in Railway Variables)
+NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+PRIMARY_MODEL = "meta/llama-3.1-70b-instruct"
+
+# Fallback: OpenRouter Free API
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-
-# Use the free tier of DeepSeek R1 as primary
-#PRIMARY_MODEL = "deepseek/deepseek-r1:free"
-PRIMARY_MODEL = "openrouter/free"
-# Auto-route to the best available free model if primary fails
-#FALLBACK_MODEL = "openrouter/auto"
-FALLBACK_MODEL = "google/gemini-2.0-flash-exp:free"
+FALLBACK_MODEL = "openrouter/auto"  # Or "google/gemini-2.0-flash-exp:free"
 
 
-def _call_openrouter(model: str, system_prompt: str, user_content: str) -> str:
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://ai-stock.app",
-        "X-Title": "Ai-Stock Analyzer"
-    }
-    
-    # We will remove "response_format": {"type": "json_object"} 
-    # because not all free models support it and it causes API rejections.
+def _call_api(provider: str, model: str, system_prompt: str, user_content: str) -> str:
+    """
+    Handles API calls to both NVIDIA and OpenRouter based on the specified provider.
+    """
     payload = {
         "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content},
         ],
-        "temperature": 0.4
+        "temperature": 0.2, # Kept low for accurate JSON
+        "max_tokens": 1024
     }
+
+    if provider == "nvidia":
+        if not NVIDIA_API_KEY:
+            raise ValueError("NVIDIA_API_KEY is not set.")
+        
+        headers = {
+            "Authorization": f"Bearer {NVIDIA_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        url = NVIDIA_URL
+        
+    elif provider == "openrouter":
+        if not OPENROUTER_API_KEY:
+            raise ValueError("OPENROUTER_API_KEY is not set.")
+            
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://ai-stock.app",
+            "X-Title": "Ai-Stock Analyzer"
+        }
+        url = OPENROUTER_URL
+    else:
+        raise ValueError("Unknown API provider.")
     
     try:
-        response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=180)
+        response = requests.post(url, headers=headers, json=payload, timeout=60)
         
-        # If OpenRouter returns an error, print it so you can see it in Railway logs
         if response.status_code != 200:
-            print(f"OpenRouter Error: {response.status_code} - {response.text}")
+            print(f"{provider.capitalize()} Error: {response.status_code} - {response.text}")
             
         response.raise_for_status()
         result = response.json()
         
-        # Safely extract choices
         if "choices" not in result:
             print(f"API Error: 'choices' missing. Full response: {result}")
             raise KeyError("'choices' not found in response")
@@ -67,7 +85,7 @@ def _call_openrouter(model: str, system_prompt: str, user_content: str) -> str:
         return result["choices"][0]["message"]["content"]
         
     except requests.exceptions.RequestException as e:
-        print(f"Request failed: {str(e)}")
+        print(f"Request to {provider} failed: {str(e)}")
         raise
 
 
@@ -77,29 +95,22 @@ def _extract_json(raw_text: str) -> dict:
     """
     text = raw_text.strip()
     
-    # DeepSeek R1 often puts its thinking inside <think>...</think> tags. 
-    # We must remove that before parsing JSON.
     if "<think>" in text and "</think>" in text:
         text = text.split("</think>")[-1].strip()
         
-    # NEW FIX: Strip markdown code blocks (```json ... ```) using regex
-    # This safely handles variations like ```JSON, ``` json, or just ```
     text = re.sub(r'^```[a-zA-Z]*\s*', '', text, flags=re.IGNORECASE | re.MULTILINE)
     text = re.sub(r'```\s*$', '', text, flags=re.MULTILINE)
     text = text.strip()
 
-    # Try direct parse first
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    # Fallback: extract everything between the first { and the last }
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
         try:
-            # We slice up to end + 1 to include the closing brace
             clean_json_str = text[start:end + 1]
             return json.loads(clean_json_str)
         except json.JSONDecodeError as e:
@@ -111,24 +122,23 @@ def _extract_json(raw_text: str) -> dict:
 
 def _run_with_fallback(system_prompt: str, user_content: str) -> dict:
     """
-    Tries the primary model. If it fails or times out, tries the fallback model.
+    Tries NVIDIA first. If it fails (e.g., rate limit), it safely falls back to OpenRouter.
     """
+    # Try NVIDIA First
     try:
-        # Try DeepSeek first
-        print(f"Calling OpenRouter with {PRIMARY_MODEL}...")
-        raw_response = _call_openrouter(PRIMARY_MODEL, system_prompt, user_content)
+        print(f"Calling NVIDIA API with {PRIMARY_MODEL}...")
+        raw_response = _call_api("nvidia", PRIMARY_MODEL, system_prompt, user_content)
         return _extract_json(raw_response)
     
     except Exception as e:
-        print(f"{PRIMARY_MODEL} failed ({str(e)}). Switching to {FALLBACK_MODEL}...")
+        print(f"NVIDIA API failed ({str(e)}). Switching to OpenRouter ({FALLBACK_MODEL})...")
         
+        # Fallback to OpenRouter
         try:
-            # Fallback to auto-router
-            raw_response = _call_openrouter(FALLBACK_MODEL, system_prompt, user_content)
+            raw_response = _call_api("openrouter", FALLBACK_MODEL, system_prompt, user_content)
             return _extract_json(raw_response)
         
         except Exception as fallback_e:
-            # If both fail, return a structured error so the frontend doesn't crash
             return {
                 "error": f"AI Engine failed. Primary error: {str(e)}. Fallback error: {str(fallback_e)}"
             }

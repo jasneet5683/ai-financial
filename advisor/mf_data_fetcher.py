@@ -1,5 +1,6 @@
+import requests
+from bs4 import BeautifulSoup
 from mftool import Mftool
-from ddgs import DDGS
 
 def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
     mf_data = {
@@ -10,9 +11,9 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
         "raw_search_text": ""
     }
 
-    print(f"[mf_fetcher] Fetching basic text for: {fund_name} ({scheme_code})")
+    print(f"[mf_fetcher] Fetching data for: {fund_name}")
 
-    # 1. Get Category from mftool
+    # 1. Get exact Category and Fund House from mftool (Very reliable for India)
     try:
         if scheme_code:
             obj = Mftool()
@@ -25,7 +26,7 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
     except Exception as e:
         print(f"[mf_fetcher] mftool error: {e}")
 
-    # 2. Grab text from DDGS
+    # 2. Scrape DuckDuckGo HTML directly (Bypasses the 'ddgs' library block)
     try:
         search_name = (
             fund_name
@@ -34,29 +35,45 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
             .replace(" Regular Plan", "")
             .strip()
         )
-
-        query = f'"{search_name}" direct growth AUM expense ratio 1 year return'
         
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
+        # Formulate a highly specific query
+        query = f'"{search_name}" mutual fund AUM expense ratio moneycontrol groww'
+        
+        url = "https://html.duckduckgo.com/html/"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        
+        # POST request to the HTML search endpoint
+        response = requests.post(url, headers=headers, data={"q": query}, timeout=15)
+        
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Extract all search result snippets
+            snippets = soup.find_all(class_='result__snippet')
             
-            combined_text = ""
-            for r in results:
-                title = r.get("title", "")
-                body = r.get("body", "")
-                combined_text += f"{title}: {body} | "
-
-            mf_data["raw_search_text"] = combined_text.strip()
-            
-            # If DDGS returned nothing, put a fallback message so the AI knows
-            if not mf_data["raw_search_text"]:
-                mf_data["raw_search_text"] = f"Basic Info: This is the {fund_name} managed by {mf_data['fund_house']}. Category: {mf_data['fund_category']}. No current AUM or expense ratio data could be fetched."
-                
-            print(f"[mf_fetcher] Final Search Text sent to AI: {mf_data['raw_search_text'][:200]}")
+            if snippets:
+                # Combine the top 4 snippets into one text block for the AI
+                extracted_text = " | ".join([s.get_text(separator=" ", strip=True) for s in snippets[:4]])
+                mf_data["raw_search_text"] = extracted_text
+            else:
+                print("[mf_fetcher] No snippets found in DDG HTML.")
+        else:
+            print(f"[mf_fetcher] DDG blocked request. Status: {response.status_code}")
 
     except Exception as e:
-        print(f"[mf_fetcher] DDGS Search error: {e}")
-        # Fallback if DDGS crashes completely
-        mf_data["raw_search_text"] = f"Basic Info: This is the {fund_name} managed by {mf_data['fund_house']}. Category: {mf_data['fund_category']}. Live search failed."
+        print(f"[mf_fetcher] HTML Search error: {e}")
 
+    # 3. Fallback to ensure AI never fails completely
+    if not mf_data["raw_search_text"] or len(mf_data["raw_search_text"]) < 20:
+         mf_data["raw_search_text"] = (
+             f"Basic Info: This is the {fund_name} managed by {mf_data['fund_house']}. "
+             f"Category: {mf_data['fund_category']}. "
+             f"Live numerical data could not be fetched due to network blocking. "
+             f"Please write a summary based on the fund category."
+         )
+
+    print(f"[mf_fetcher] Text sent to AI: {mf_data['raw_search_text'][:200]}...")
+    
     return mf_data

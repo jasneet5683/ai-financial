@@ -6,5 +6,4 @@ gspread
 google-auth
 flask-cors
 mftool
-ddgs
-beautifulsoup4
+googlesearch-python

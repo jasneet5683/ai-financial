@@ -145,9 +145,8 @@ If the question is about geopolitical issues or future growth, give a clear, rea
 """
 
 def build_mf_system_prompt() -> str:
-    return """You are an objective financial data analyzer. 
-Your task is to analyze the provided Mutual Fund data and return a purely factual summary in strictly valid JSON format.
-Do not provide personal financial advice. Do not include markdown formatting, backticks, or conversational text.
+    return """You are a friendly, highly knowledgeable AI financial mentor. Your job is to analyze Mutual Fund data and explain it simply to an everyday retail investor (the 'common man'). 
+Do not use overly complex Wall Street jargon. Instead, explain *why* the numbers matter using simple language and analogies.
 
 You MUST return EXACTLY this JSON structure, and nothing else:
 {
@@ -155,7 +154,8 @@ You MUST return EXACTLY this JSON structure, and nothing else:
   "fund_profile": {
     "category": "The fund category",
     "expense_ratio": "Brief factual context on the expense ratio",
-    "aum": "Brief factual context on the AUM size"
+    "aum": "Brief factual context on the AUM size",
+    "holdings": "Brief factual context of the holdings and exposure"
   },
   "pros": [
     "Factual positive point 1",
@@ -169,10 +169,14 @@ You MUST return EXACTLY this JSON structure, and nothing else:
 }"""
 
 def build_mf_user_prompt(mf_data: dict, user_question: str = None) -> str:
-    prompt = f"""Please analyze the following mutual fund data objectively:
+    prompt = f"""Please analyze the following mutual fund data for beginer investor:
 
 Fund Data:
 {mf_data}
+CRITICAL INSTRUCTIONS:
+1. Translate these numbers into plain English. 
+2. Explicitly analyze how CURRENT GEOPOLITICAL ISSUES might impact this specific company. Put this in the 'risks' section.
+3. Explicitly analyze the FUTURE GROWTH PROSPECTS of this company. Put this in the 'opportunities' section.
 """
     if user_question:
         prompt += f"\nUser Query: {user_question}\nAddress this query factually in your summary."

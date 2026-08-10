@@ -173,10 +173,12 @@ def build_mf_user_prompt(mf_data: dict, user_question: str = None) -> str:
 
 Fund Data:
 {mf_data}
+NOTE: If specific metrics (like AUM, Expense Ratio, or Holdings) are missing from the structured fields, 
+please read the '_raw_search_snippet' provided in the data to extract them. If you still cannot find them, state "Data unavailable".
 CRITICAL INSTRUCTIONS:
 1. Translate these numbers into plain English. 
 2. Explicitly analyze how CURRENT GEOPOLITICAL ISSUES might impact this specific company. Put this in the 'risks' section.
-3. Explicitly analyze the FUTURE GROWTH PROSPECTS of this company. Put this in the 'opportunities' section.
+3. Explicitly analyze the FUTURE GROWTH PROSPECTS of this Fund. Put this in the 'opportunities' section.
 """
     if user_question:
         prompt += f"\nUser Query: {user_question}\nAddress this query factually in your summary."

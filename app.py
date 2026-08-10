@@ -325,7 +325,8 @@ def api_analyze_fund():
 
         # 4. NEW: Fetch rich data from Morningstar using mstarpy
         print(f"[app.py] Fetching mstarpy data for: {best_match['schemeName']}")
-        mstarpy_data = fetch_mstarpy_fund_details(best_match['schemeName'])
+        #mstarpy_data = fetch_mstarpy_fund_details(best_match['schemeName'])
+        mstarpy_data = fetch_mstarpy_fund_details(best_match['schemeName'], scheme_code)
 
         # 5. Format the data so the frontend and AI can understand it easily
         fund_info = {

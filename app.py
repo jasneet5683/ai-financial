@@ -385,7 +385,7 @@ def api_market_movers():
                 'name': 'NIFTY 50',
                 'symbols': [
                     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS",
-                    "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "LT.NS", "TMPV.NS", # Replaced TATAMOTORS with TMPV
+                    "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "LTM.NS", "TMPV.NS", # Replaced TATAMOTORS with TMPV
                     "SUNPHARMA.NS", "MARUTI.NS", "TATASTEEL.NS", "BAJFINANCE.NS", "AXISBANK.NS",
                     "M&M.NS", "ASIANPAINT.NS", "HCLTECH.NS", "NTPC.NS", "KOTAKBANK.NS",
                     "WIPRO.NS", "ONGC.NS", "POWERGRID.NS", "HINDUNILVR.NS", "ADANIENT.NS",

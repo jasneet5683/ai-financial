@@ -146,48 +146,45 @@ If the question is about geopolitical issues or future growth, give a clear, rea
 
 def build_mf_system_prompt() -> str:
     return """You are a highly analytical, objective financial data extraction AI.
-Your task is to analyze raw mutual fund data (which includes messy search text) and extract factual metrics into a strict JSON structure.
+Your task is to analyze raw mutual fund data and extract factual metrics into a strict JSON structure.
 
 Instructions:
-1. Extract the AUM, Expense Ratio, 1-Year Return, and 3-Year Return from the 'raw_search_text' provided.
-2. If a specific metric is clearly visible in the text, include it (e.g., "1.3%" or "₹148,429 Cr").
-3. If a metric is NOT mentioned in the text, explicitly state "Data unavailable". Do NOT invent or guess numbers.
-4. Provide a brief summary, pros, and cons based on the category and facts you extract.
-5. Do not provide personal financial advice.
+1. Extract AUM and Expense Ratio from the 'raw_search_text'.
+2. If a metric is NOT mentioned, state "Data unavailable". Do NOT invent numbers.
+3. Write a summary, pros, and cons based on the Fund Name, Category, and the provided text.
+4. Even if numbers are missing in the search text, you MUST write a descriptive summary, pros, and cons based on the fund's name and category.
 
-You MUST return EXACTLY this JSON structure, and nothing else (no markdown, no backticks):
+You MUST return EXACTLY this JSON structure, and nothing else:
 {
-  "summary": "A 2-3 sentence objective overview of what this fund is.",
+  "summary": "A 2-3 sentence objective overview of what this fund is based on its category and name.",
   "fund_profile": {
     "category": "The fund category",
-    "expense_ratio": "Extracted Expense Ratio (e.g. 1.3%) or 'Data unavailable'",
-    "aum": "Extracted AUM (e.g. ₹10,000 Cr) or 'Data unavailable'",
-    "1y_return": "Extracted 1 Year Return or 'Data unavailable'",
-    "3y_return": "Extracted 3 Year Return or 'Data unavailable'"
+    "expense_ratio_context": "Extracted Expense Ratio or 'Data unavailable'",
+    "aum_context": "Extracted AUM or 'Data unavailable'"
   },
   "pros": [
-    "Factual positive point based on category or facts",
+    "Factual positive point based on category",
     "Factual positive point 2"
   ],
   "cons": [
-    "Factual risk or negative point based on category or facts",
+    "Factual risk or negative point based on category",
     "Factual risk or negative point 2"
   ],
-  "verdict": "A brief objective conclusion based strictly on the provided data."
+  "verdict": "A brief objective conclusion."
 }"""
 
 def build_mf_user_prompt(mf_data: dict, user_question: str = None) -> str:
-    prompt = f"""Please extract and analyze the following mutual fund data objectively.
+    prompt = f"""Extract and analyze the following mutual fund data.
 
 Fund Name: {mf_data.get('fund_name')}
 Category: {mf_data.get('fund_category')}
 Fund House: {mf_data.get('fund_house')}
 
-Raw Search Text (Extract AUM, Expense Ratio, and Returns from this text):
+Raw Search Text (Extract numbers from here):
 {mf_data.get('raw_search_text')}
 """
     if user_question:
-        prompt += f"\nUser Query: {user_question}\nAddress this query factually in your summary."
+        prompt += f"\nUser Query: {user_question}\n"
         
-    prompt += "\n\nReturn ONLY the JSON. No other text."
+    prompt += "\nReturn ONLY valid JSON."
     return prompt

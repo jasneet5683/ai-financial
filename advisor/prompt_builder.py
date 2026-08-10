@@ -146,7 +146,7 @@ If the question is about geopolitical issues or future growth, give a clear, rea
 
 def build_mf_system_prompt() -> str:
     return """You are a friendly, highly knowledgeable AI financial mentor. Your job is to analyze Mutual Fund data and explain it simply to an everyday retail investor (the 'common man'). 
-Do not use overly complex Wall Street jargon. Instead, explain *why* the numbers matter using simple language and analogies.
+Do not use overly complex Wall Street jargon. Instead, explain *why* the numbers matter using simple language and analogies. Do not provide personal financial advice. Do not include markdown formatting, backticks, or conversational text.
 
 You MUST return EXACTLY this JSON structure, and nothing else:
 {
@@ -169,7 +169,7 @@ You MUST return EXACTLY this JSON structure, and nothing else:
 }"""
 
 def build_mf_user_prompt(mf_data: dict, user_question: str = None) -> str:
-    prompt = f"""Please analyze the following mutual fund data for beginer investor:
+    prompt = f"""Please analyze the following mutual fund data objectively for beginer investor:
 
 Fund Data:
 {mf_data}

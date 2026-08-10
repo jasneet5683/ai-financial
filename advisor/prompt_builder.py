@@ -174,17 +174,34 @@ You MUST return EXACTLY this JSON structure, and nothing else:
 }"""
 
 def build_mf_user_prompt(mf_data: dict, user_question: str = None) -> str:
-    prompt = f"""Extract and analyze the following mutual fund data.
+    """
+    Constructs the prompt for Mutual Fund analysis, ensuring all fetched 
+    data (like AUM and Expense Ratio) is passed to the AI.
+    """
+    # Extract the data we fetched from Groww and mftool
+    fund_name = mf_data.get("fund_name", "Unknown Fund")
+    fund_house = mf_data.get("fund_house", "Unknown House")
+    category = mf_data.get("fund_category", "Unknown Category")
+    
+    # This is the crucial part: getting the formatted Groww data
+    raw_search_text = mf_data.get("raw_search_text", "No numerical data available.")
 
-Fund Name: {mf_data.get('fund_name')}
-Category: {mf_data.get('fund_category')}
-Fund House: {mf_data.get('fund_house')}
+    prompt = (
+        f"Analyze the following Mutual Fund/ETF:\n"
+        f"Fund Name: {fund_name}\n"
+        f"Fund House: {fund_house}\n"
+        f"Category: {category}\n\n"
+        f"Here is the latest live data retrieved for this fund (AUM, Expense Ratio, Returns):\n"
+        f"--- DATA START ---\n"
+        f"{raw_search_text}\n"
+        f"--- DATA END ---\n\n"
+    )
 
-Raw Search Text (Extract numbers from here):
-{mf_data.get('raw_search_text')}
-"""
     if user_question:
-        prompt += f"\nUser Query: {user_question}\n"
-        
-    prompt += "\nReturn ONLY valid JSON."
+        prompt += f"The user asked a specific question: '{user_question}'\nAddress this in your summary.\n"
+
+    prompt += (
+        "Return the analysis as a JSON object strictly matching the format defined in the system instructions."
+    )
+
     return prompt

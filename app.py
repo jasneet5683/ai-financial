@@ -337,12 +337,14 @@ def api_analyze_fund():
             "regularMarketPrice": current_nav,
             "currency": "INR",
             "navDate": nav_date,
-            # NEW: Add all the mstarpy metrics
-            "aum": mstarpy_data.get("aum", "N/A"),
-            "expense_ratio": mstarpy_data.get("expense_ratio", "N/A"),
-            "1y_return": mstarpy_data.get("1y_return", "N/A"),
-            "3y_return": mstarpy_data.get("3y_return", "N/A"),
-            "top_holdings": mstarpy_data.get("top_holdings", "N/A")
+            
+            # This passes all our calculated returns and DDG search snippets directly to the prompt!
+            "raw_search_text": mstarpy_data.get("raw_search_text", ""),
+            
+            # (Required by prompt_builder.py)
+            "fund_name": meta.get("scheme_name", best_match['schemeName']),
+            "fund_category": mstarpy_data.get("fund_category", meta.get("scheme_category", "Mutual Fund")),
+            "fund_house": meta.get("fund_house", "Unknown")
         }
 
         # 6. Run AI Analysis

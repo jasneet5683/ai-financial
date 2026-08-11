@@ -67,6 +67,7 @@ def resolve_company_to_symbol(query: str, exchange: str) -> str:
         return query.upper() # Fallback to what the user typed if search fails
 
 
+
 # --- WEB ROUTES ---
 
 @app.route('/')
@@ -320,8 +321,47 @@ def api_analyze_fund():
                 chart_data["dates"].append(item['date'])
                 chart_data["prices"].append(float(item['nav']))
 
+        # --- Format 1-year historical data for the chart ---
+        chart_data = {"dates": [], "prices": []}
+        if fund_data:
+            history_subset = fund_data[:250]
+            history_subset.reverse()
+            for item in history_subset:
+                chart_data["dates"].append(item['date'])
+                chart_data["prices"].append(float(item['nav']))
+
         current_nav = fund_data[0]['nav'] if fund_data else "N/A"
         nav_date = fund_data[0]['date'] if fund_data else "N/A"
+
+        # --- NEW: Fetch Nifty 50 Benchmark Data for Comparison ---
+        import yfinance as yf
+        import pandas as pd
+        try:
+            # Fetch 1 year of Nifty 50 data (^NSEI)
+            nifty = yf.download('^NSEI', period='1y', progress=False)
+            
+            nifty_dict = {}
+            if not nifty.empty:
+                for idx, row in nifty.iterrows():
+                    date_str = idx.strftime('%d-%m-%Y')
+                    # Handle yfinance multi-index/series variations safely
+                    close_val = row['Close']
+                    if isinstance(close_val, pd.Series):
+                        close_val = close_val.iloc[0]
+                    nifty_dict[date_str] = float(close_val)
+            
+            chart_data["benchmark_prices"] = []
+            last_known_nifty = None
+            
+            # Align Nifty prices with the exact dates the Mutual Fund traded
+            for d in chart_data["dates"]:
+                if d in nifty_dict:
+                    last_known_nifty = nifty_dict[d]
+                chart_data["benchmark_prices"].append(last_known_nifty)
+
+        except Exception as e:
+            print(f"Failed to fetch Nifty 50 data: {e}")
+            chart_data["benchmark_prices"] = [None] * len(chart_data["dates"])
 
         # 4. NEW: Fetch rich data from Morningstar using mstarpy
         print(f"[app.py] Fetching mstarpy data for: {best_match['schemeName']}")

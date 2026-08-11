@@ -23,7 +23,7 @@ NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-PRIMARY_MODEL = "meta/llama-3.1-70b-instruct"
+PRIMARY_MODEL = "nvidia/llama-3.1-nemotron-70b-instruct"
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 FALLBACK_MODEL = "openrouter/free"
@@ -45,7 +45,7 @@ def _call_api(provider: str, model: str, system_prompt: str, user_content: str) 
             "Content-Type": "application/json"
         }
         url = NVIDIA_URL
-        timeout = 120  # Increased from 60 to 120 so NVIDIA doesn't crash
+        timeout = 180  # Increased from 60 to 180 so NVIDIA doesn't crash
         
     elif provider == "openrouter":
         headers = {

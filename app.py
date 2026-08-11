@@ -24,6 +24,16 @@ from advisor.ai_engine import analyze_stock, analyze_portfolio, chat_market_advi
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app) 
 
+import math
+
+@app.after_request
+def fix_nan(response):
+    if response.content_type == 'application/json':
+        fixed = response.get_data(as_text=True)
+        fixed = fixed.replace('NaN', 'null').replace('Infinity', 'null').replace('-Infinity', 'null')
+        response.set_data(fixed)
+    return response
+
 
 #==== Search Function =========
 

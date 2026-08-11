@@ -229,22 +229,40 @@ def api_ask_stock_question():
 
     try:
         from advisor.prompt_builder import build_followup_prompt
-        from advisor.ai_engine import _call_openrouter, PRIMARY_MODEL, FALLBACK_MODEL
+        import json
+        import requests
+        import os
         
-        # Explicitly tell the AI NOT to use JSON here
         system_prompt = "You are a friendly financial mentor explaining stocks to a beginner. Reply with plain conversational text only. DO NOT output JSON. DO NOT wrap your answer in brackets or braces."
         user_content = build_followup_prompt(stock_data, analysis, question)
         
-        try:
-            answer = _call_openrouter(FALLBACK_MODEL, system_prompt, user_content)
-        except:
-            answer = _call_openrouter(PRIMARY_MODEL, system_prompt, user_content)
-            
+        OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+        if not OPENROUTER_API_KEY:
+            return jsonify({"error": "Missing OpenRouter API key"}), 500
+
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "google/gemini-2.5-flash",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ]
+        }
+        
+        r = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
+        r.raise_for_status()
+        result = r.json()
+        answer = result['choices'][0]['message']['content']
+
         # Clean up <think> tags if Deepseek was used
         if "<think>" in answer and "</think>" in answer:
             answer = answer.split("</think>")[-1].strip()
 
-        # --- FIX: Parse JSON if the AI still stubbornly returned it ---
+        # Parse JSON if the AI still stubbornly returned it
         if isinstance(answer, str):
             clean_ans = answer.strip()
             if clean_ans.startswith("```json"):
@@ -253,11 +271,9 @@ def api_ask_stock_question():
             if clean_ans.startswith("{"):
                 try:
                     parsed = json.loads(clean_ans)
-                    # Extract the text, falling back through common keys
                     answer = parsed.get('response', parsed.get('answer', parsed.get('text', answer)))
                 except json.JSONDecodeError:
-                    pass # Not valid JSON, keep original string
-        # --------------------------------------------------------------
+                    pass
 
         response = jsonify({"answer": answer})
         response.headers.add('Access-Control-Allow-Origin', '*')
@@ -267,6 +283,7 @@ def api_ask_stock_question():
         import traceback
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/analyze-fund', methods=['POST', 'OPTIONS'])
 def api_analyze_fund():

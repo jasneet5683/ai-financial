@@ -161,6 +161,12 @@ STRICT RULES FOR RECOMMENDATIONS:
 - Only NSE-listed Indian stocks
 - Maximum 6 stocks
 - Do NOT write the JSON anywhere outside the <RECOMMENDATIONS> block"""
+   
+    # ── Build base payload ────────────────────────────────
+    base_messages = [
+        {"role": "system", "content": system_prompt},
+        *messages
+    ]
 
     raw_reply = None
 
@@ -168,14 +174,22 @@ STRICT RULES FOR RECOMMENDATIONS:
     if NVIDIA_API_KEY:
         try:
             print("Calling NVIDIA for market advisor...")
-            nvidia_payload = {**payload, "model": PRIMARY_MODEL}
+            nvidia_payload = {
+                "model": PRIMARY_MODEL,
+                "messages": base_messages,
+                "temperature": 0.7,
+                "max_tokens": 1024,
+                "stream": False
+            }
             headers = {
                 "Authorization": f"Bearer {NVIDIA_API_KEY}",
                 "Content-Type": "application/json"
             }
             response = requests.post(
-                NVIDIA_URL, headers=headers,
-                json=nvidia_payload, timeout=60
+                NVIDIA_URL,
+                headers=headers,
+                json=nvidia_payload,
+                timeout=60
             )
             if response.ok:
                 raw_reply = response.json()["choices"][0]["message"]["content"]
@@ -189,7 +203,13 @@ STRICT RULES FOR RECOMMENDATIONS:
     if raw_reply is None and OPENROUTER_API_KEY:
         try:
             print("Calling OpenRouter for market advisor...")
-            openrouter_payload = {**payload, "model": FALLBACK_MODEL}
+            openrouter_payload = {
+                "model": FALLBACK_MODEL,
+                "messages": base_messages,
+                "temperature": 0.7,
+                "max_tokens": 1024,
+                "stream": False
+            }
             headers2 = {
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json",
@@ -197,8 +217,10 @@ STRICT RULES FOR RECOMMENDATIONS:
                 "X-Title": "AI Financial Advisor"
             }
             response = requests.post(
-                OPENROUTER_URL, headers=headers2,
-                json=openrouter_payload, timeout=60
+                OPENROUTER_URL,
+                headers=headers2,
+                json=openrouter_payload,
+                timeout=60
             )
             response.raise_for_status()
             raw_reply = response.json()["choices"][0]["message"]["content"]

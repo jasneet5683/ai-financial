@@ -52,8 +52,7 @@ def _safe_get(info: dict, key: str, default="Not available"):
 def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> dict:
     """
     Returns structured stock data for a given symbol.
-    Fetches historical prices for charts and Nifty 50 benchmark data.
-    Falls back gracefully if any field is missing.
+    Fetches historical prices and Nifty 50 safely.
     """
     ticker_symbol = resolve_ticker(symbol, exchange)
     cache_key = f"{ticker_symbol}_{period}"
@@ -63,45 +62,40 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> di
         return cached
 
     try:
+        # 1. Fetch Stock Data
         stock = yf.Ticker(ticker_symbol)
         info = stock.info or {}
-        
-        # Download historical data for the stock AND Nifty 50
-        # ^NSEI is the ticker for Nifty 50 on Yahoo Finance
-        tickers = f"{ticker_symbol} ^NSEI"
-        hist_data = yf.download(tickers, period=period, progress=False)
+        hist = stock.history(period=period)
+
+        # 2. Fetch Nifty 50 Data separately (safest method)
+        nifty = yf.Ticker("^NSEI")
+        nifty_hist = nifty.history(period=period)
+
+        # Create a dictionary for Nifty prices by date for easy lookup
+        nifty_map = {}
+        if not nifty_hist.empty and "Close" in nifty_hist:
+            for date, row in nifty_hist.iterrows():
+                nifty_map[date.strftime('%Y-%m-%d')] = round(float(row["Close"]), 2)
 
         dates = []
         prices = []
         benchmark_prices = []
         price_change_pct = None
 
-        if not hist_data.empty and "Close" in hist_data:
-            # Handle Single vs Multi-ticker download structures
-            if isinstance(hist_data.columns, pd.MultiIndex):
-                stock_close = hist_data["Close"][ticker_symbol]
-                nifty_close = hist_data["Close"]["^NSEI"]
-            else:
-                # Fallback if downloaded as single ticker for some reason
-                stock_close = hist_data["Close"]
-                nifty_close = pd.Series([None]*len(stock_close), index=stock_close.index)
-
-            # Drop rows where the stock data is completely missing
-            stock_close = stock_close.dropna()
-            
-            for date in stock_close.index:
-                dates.append(date.strftime('%Y-%m-%d'))
+        if not hist.empty and "Close" in hist:
+            for date, row in hist.iterrows():
+                d_str = date.strftime('%Y-%m-%d')
+                dates.append(d_str)
                 
-                s_price = stock_close.loc[date]
-                prices.append(round(float(s_price), 2) if not pd.isna(s_price) else None)
+                # Add Stock Price
+                s_price = round(float(row["Close"]), 2)
+                prices.append(s_price)
                 
-                try:
-                    n_price = nifty_close.loc[date]
-                    benchmark_prices.append(round(float(n_price), 2) if not pd.isna(n_price) else None)
-                except KeyError:
-                    benchmark_prices.append(None)
+                # Add matching Nifty 50 Price (or None if Nifty didn't trade that day)
+                benchmark_prices.append(nifty_map.get(d_str, None))
 
-            if len(prices) > 1 and prices[0] is not None and prices[-1] is not None:
+            # Calculate price change
+            if len(prices) > 1 and prices[0] and prices[-1]:
                 price_change_pct = round(((prices[-1] - prices[0]) / prices[0]) * 100, 2)
 
         data = {
@@ -127,7 +121,7 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> di
             "profit_margins": _safe_get(info, "profitMargins"),
             "period_price_change_pct": price_change_pct if price_change_pct is not None else "Not available",
             
-            # Needed for the charts:
+            # Chart Data:
             "dates": dates,
             "prices": prices,
             "benchmark_prices": benchmark_prices,
@@ -139,6 +133,8 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> di
         return data
 
     except Exception as e:
+        import traceback
+        print(traceback.format_exc()) # Will print errors to your Railway logs if any
         return {
             "ticker": ticker_symbol,
             "error": f"Failed to fetch data: {str(e)}",

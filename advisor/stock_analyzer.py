@@ -67,9 +67,15 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> di
         info = stock.info or {}
         hist = stock.history(period=period)
 
-        # 2. Fetch Nifty 50 Data separately (safest method)
+        # 2. Fetch Nifty 50 Data separately
         nifty = yf.Ticker("^NSEI")
         nifty_hist = nifty.history(period=period)
+        
+        # DEBUG PRINT: Let's see if yfinance is actually getting data!
+        print(f"DEBUG NIFTY: Fetched {len(nifty_hist)} rows for ^NSEI")
+        if nifty_hist.empty:
+            print("WARNING: Nifty history is completely empty! yfinance failed.")
+
 
         # Create a dictionary for Nifty prices by date for easy lookup
         nifty_map = {}

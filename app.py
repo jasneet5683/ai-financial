@@ -115,10 +115,33 @@ def api_analyze_stock():
 
         # 2. Fetch 1-year historical data for the chart
         hist = stock.history(period="1y")
-        chart_data = {"dates": [], "prices": []}
+        
+        # Fetch Nifty 50 benchmark data
+        nifty = yf.Ticker("^NSEI")
+        nifty_hist = nifty.history(period="1y")
+        
+        # Build a date -> price map for Nifty
+        nifty_map = {}
+        if not nifty_hist.empty:
+            for date, row in nifty_hist.iterrows():
+                nifty_map[date.strftime('%Y-%m-%d')] = round(float(row["Close"]), 2)
+        
+        # If ^NSEI failed, try ETF fallback
+        if not nifty_map:
+            nifty2 = yf.Ticker("NIFTYBEES.NS")
+            nifty2_hist = nifty2.history(period="1y")
+            if not nifty2_hist.empty:
+                for date, row in nifty2_hist.iterrows():
+                    nifty_map[date.strftime('%Y-%m-%d')] = round(float(row["Close"]), 2)
+
+        chart_data = {"dates": [], "prices": [], "benchmark_prices": []}
         if not hist.empty:
             chart_data["dates"] = [d.strftime('%Y-%m-%d') for d in hist.index]
             chart_data["prices"] = hist['Close'].tolist()
+            # Match Nifty price to each stock date
+            chart_data["benchmark_prices"] = [
+                nifty_map.get(d, None) for d in chart_data["dates"]
+            ]
 
         # 3. MAP THE DATA (This is what was missing! Convert Yahoo keys to our keys)
         current_price = stock_info.get('currentPrice', stock_info.get('regularMarketPrice', 0))

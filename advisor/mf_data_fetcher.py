@@ -1,7 +1,5 @@
-import requests
 from mftool import Mftool
 from googlesearch import search
-import time
 
 def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
     mf_data = {
@@ -14,43 +12,70 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
 
     print(f"[mf_fetcher] Fetching data for: {fund_name} (Code: {scheme_code})")
 
-    # 1. Base Data from mftool (Category & House)
-    if scheme_code:
-        try:
-            obj = Mftool()
-            details = obj.get_scheme_details(scheme_code)
-            if details:
-                mf_data["fund_category"] = details.get("scheme_category", "Unknown")
-                mf_data["fund_house"] = details.get("mutual_fund_family", "Unknown")
-        except Exception as e:
-            print(f"[mf_fetcher] mftool error: {e}")
+    if not scheme_code:
+        mf_data["raw_search_text"] = "No scheme code provided. Cannot fetch live data."
+        return mf_data
 
-    # 2. Get Live NAV from MFAPI.in (Very Reliable, Unblocked)
     current_nav = "Unknown"
     nav_date = "Unknown"
-    if scheme_code:
-        try:
-            mfapi_url = f"https://api.mfapi.in/mf/{scheme_code}"
-            response = requests.get(mfapi_url, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                if "data" in data and len(data["data"]) > 0:
-                    current_nav = data["data"][0]["nav"]
-                    nav_date = data["data"][0]["date"]
-        except Exception as e:
-            print(f"[mf_fetcher] MFAPI error: {e}")
+    returns_text = "Return data unavailable."
 
-    # 3. Safely Google for AUM and Expense Ratio (Bypasses IP blocks)
-    # We clean the name to make the search highly specific
+    # 1. Base Data & Return Calculations using pure AMFI (mftool)
+    try:
+        obj = Mftool()
+        
+        # Get Category and AMC
+        details = obj.get_scheme_details(scheme_code)
+        if details:
+            mf_data["fund_category"] = details.get("scheme_category", "Unknown")
+            mf_data["fund_house"] = details.get("mutual_fund_family", "Unknown")
+
+        # Get Historical NAVs and Calculate Returns
+        nav_data = obj.get_scheme_historical_nav(scheme_code, as_json=False)
+        
+        if nav_data and 'data' in nav_data and len(nav_data['data']) > 0:
+            nav_list = nav_data['data']
+            current_nav = float(nav_list[0]['nav'])
+            nav_date = nav_list[0]['date']
+            
+            # Helper to safely get NAV from roughly X trading days ago
+            def get_old_nav(days_ago):
+                try:
+                    if len(nav_list) > days_ago:
+                        return float(nav_list[days_ago]['nav'])
+                except:
+                    pass
+                return None
+
+            nav_1y = get_old_nav(250) # Approx 250 trading days in a year
+            nav_3y = get_old_nav(750)
+            
+            ret_1y_str = "N/A"
+            if nav_1y:
+                ret_1y = ((current_nav - nav_1y) / nav_1y) * 100
+                ret_1y_str = f"{ret_1y:.2f}%"
+
+            ret_3y_str = "N/A"
+            if nav_3y:
+                # CAGR Formula: (Ending Value / Beginning Value) ^ (1/Years) - 1
+                cagr_3y = (((current_nav / nav_3y) ** (1/3)) - 1) * 100
+                ret_3y_str = f"{cagr_3y:.2f}%"
+                
+            returns_text = f"1-Year Return: {ret_1y_str} | 3-Year CAGR: {ret_3y_str}"
+
+    except Exception as e:
+        print(f"[mf_fetcher] mftool calculation error: {e}")
+
+    # 2. Safely Google for AUM and Expense Ratio (Fixed keyword arg)
     search_name = fund_name.replace(" - Direct Plan - Growth", "").strip()
     google_text = ""
     
     try:
         query = f'"{search_name}" AUM expense ratio moneycontrol'
-        print(f"[mf_fetcher] Googling: {query}")
+        print(f"[mf_fetcher] Googling snippets for: {query}")
         
-        # advanced=True returns the snippet text. pause=2.0 prevents Railway IP block.
-        results = search(query, num=2, stop=2, pause=2.0, advanced=True)
+        # FIXED: Removed 'num' and 'pause', using 'num_results' for latest package version
+        results = search(query, num_results=2, advanced=True)
         
         for r in results:
             title = getattr(r, 'title', '')
@@ -58,15 +83,15 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
             google_text += f"{title}: {desc} | "
             
     except Exception as e:
-        print(f"[mf_fetcher] Google Search failed (likely rate limit): {e}")
+        print(f"[mf_fetcher] Google Search failed: {e}")
 
-    # 4. Compile the final block for the AI
-    # We provide the guaranteed API data, plus the Google snippets if available.
+    # 3. Compile the final block for the AI
     final_text = (
-        f"Verified Data from AMFI/MFAPI:\n"
+        f"Verified Data from AMFI:\n"
         f"Fund House: {mf_data['fund_house']}\n"
         f"Category: {mf_data['fund_category']}\n"
-        f"Latest NAV: ₹{current_nav} (Date: {nav_date})\n\n"
+        f"Latest NAV: ₹{current_nav} (Date: {nav_date})\n"
+        f"Calculated Performance: {returns_text}\n\n"
     )
 
     if google_text:
@@ -76,7 +101,7 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
             f"Please extract the AUM and Expense Ratio from the text above if present."
         )
     else:
-        final_text += "AUM and Expense Ratio data is currently unavailable. Base your analysis on the category and NAV."
+        final_text += "AUM and Expense Ratio data is currently unavailable. Base your analysis on the calculated performance."
 
     mf_data["raw_search_text"] = final_text
     

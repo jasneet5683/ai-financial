@@ -175,33 +175,30 @@ You MUST return EXACTLY this JSON structure, and nothing else:
 
 def build_mf_user_prompt(mf_data: dict, user_question: str = None) -> str:
     """
-    Constructs the prompt for Mutual Fund analysis, ensuring all fetched 
-    data (like AUM and Expense Ratio) is passed to the AI.
+    Constructs the user prompt for Mutual Fund analysis.
+    Ensures the raw_search_text (which contains AMFI calculations and Google snippets)
+    is explicitly passed to the AI.
     """
-    # Extract the data we fetched from Groww and mftool
     fund_name = mf_data.get("fund_name", "Unknown Fund")
+    fund_category = mf_data.get("fund_category", "Unknown Category")
     fund_house = mf_data.get("fund_house", "Unknown House")
-    category = mf_data.get("fund_category", "Unknown Category")
     
-    # This is the crucial part: getting the formatted Groww data
-    raw_search_text = mf_data.get("raw_search_text", "No numerical data available.")
+    # This is the magic line that was missing/incorrect before
+    raw_search_text = mf_data.get("raw_search_text", "No live data available.")
 
     prompt = (
         f"Analyze the following Mutual Fund/ETF:\n"
         f"Fund Name: {fund_name}\n"
         f"Fund House: {fund_house}\n"
-        f"Category: {category}\n\n"
-        f"Here is the latest live data retrieved for this fund (AUM, Expense Ratio, Returns):\n"
-        f"--- DATA START ---\n"
+        f"Category: {fund_category}\n\n"
+        f"Here is the latest live data retrieved from AMFI and web search:\n"
+        f"--- LIVE DATA START ---\n"
         f"{raw_search_text}\n"
-        f"--- DATA END ---\n\n"
+        f"--- LIVE DATA END ---\n\n"
+        f"Using the live data provided above, provide a comprehensive analysis."
     )
 
     if user_question:
-        prompt += f"The user asked a specific question: '{user_question}'\nAddress this in your summary.\n"
-
-    prompt += (
-        "Return the analysis as a JSON object strictly matching the format defined in the system instructions."
-    )
+        prompt += f"\n\nThe user asked a specific question: '{user_question}'\nPlease address this question specifically in your analysis summary."
 
     return prompt

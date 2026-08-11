@@ -26,7 +26,7 @@ NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 PRIMARY_MODEL = "meta/llama-3.1-70b-instruct"
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-FALLBACK_MODEL = "openrouter/auto"
+FALLBACK_MODEL = "openrouter/free"
 
 def _call_api(provider: str, model: str, system_prompt: str, user_content: str) -> str:
     payload = {

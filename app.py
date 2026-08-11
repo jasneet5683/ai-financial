@@ -589,6 +589,64 @@ def api_market_movers():
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/market-ticker', methods=['GET'])
+def market_ticker():
+    try:
+        import yfinance as yf
+
+        indices = [
+            {"label": "NIFTY 50",    "ticker": "^NSEI"},
+            {"label": "SENSEX",      "ticker": "^BSESN"},
+            {"label": "BANK NIFTY",  "ticker": "^NSEBANK"},
+            {"label": "NIFTY IT",    "ticker": "^CNXIT"},
+        ]
+
+        result = []
+        for idx in indices:
+            try:
+                t = yf.Ticker(idx["ticker"])
+                hist = t.history(period="2d")
+
+                if len(hist) >= 2:
+                    prev_close = round(float(hist["Close"].iloc[-2]), 2)
+                    closing    = round(float(hist["Close"].iloc[-1]), 2)
+                elif len(hist) == 1:
+                    prev_close = round(float(hist["Close"].iloc[0]), 2)
+                    closing    = prev_close
+                else:
+                    continue
+
+                change     = round(closing - prev_close, 2)
+                change_pct = round((change / prev_close) * 100, 2) if prev_close else 0
+
+                if change_pct >= 1.5:
+                    emoji = "🎉"
+                elif change_pct >= 0:
+                    emoji = "😊"
+                elif change_pct >= -1.5:
+                    emoji = "😟"
+                else:
+                    emoji = "😢"
+
+                result.append({
+                    "label":      idx["label"],
+                    "closing":    closing,
+                    "change":     change,
+                    "change_pct": change_pct,
+                    "emoji":      emoji,
+                    "direction":  "up" if change >= 0 else "down"
+                })
+            except Exception as e:
+                print(f"Ticker fetch failed for {idx['label']}: {str(e)}")
+                continue
+
+        response = jsonify({"indices": result})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     # Railway typically uses the PORT environment variable

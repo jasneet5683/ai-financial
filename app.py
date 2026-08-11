@@ -13,12 +13,13 @@ from flask_cors import CORS
 import traceback # Add this at the top with your other imports
 import requests 
 import json
+
 # Load environment variables from .env
 load_dotenv()
 
 from advisor.stock_analyzer import get_stock_data, get_portfolio_data
 from advisor.portfolio_engine import get_holdings, add_holding
-from advisor.ai_engine import analyze_stock, analyze_portfolio
+from advisor.ai_engine import analyze_stock, analyze_portfolio, chat_market_advisor
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app) 
@@ -647,92 +648,21 @@ def market_ticker():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @app.route('/api/market-advisor', methods=['POST'])
 def market_advisor():
     try:
         data = request.get_json()
-        messages = data.get('messages', [])  # Full conversation history
+        messages = data.get('messages', [])
 
-        system_prompt = """You are an expert Indian Stock Market Analyst with 20 years of experience.
-Your job is to guide users to find the best stocks for their needs through natural conversation.
+        if not messages:
+            return jsonify({"error": "No messages provided"}), 400
 
-RULES:
-1. Ask ONE smart question at a time to narrow down their investment profile
-2. Questions should cover: investment goal, sector interest, risk appetite, budget, time horizon
-3. After 3-5 exchanges, you have enough info — give stock recommendations
-4. NEVER give recommendations before asking at least 2-3 questions
-5. When recommending stocks, ALWAYS return a special JSON block at the END of your message
-
-RECOMMENDATION FORMAT (use this exact format when ready to recommend):
-After your friendly message, append this JSON block:
-<RECOMMENDATIONS>
-{
-  "stocks": [
-    {"symbol": "HAL", "name": "Hindustan Aeronautics Limited", "reason": "Strong order book, defence PSU"},
-    {"symbol": "BEL", "name": "Bharat Electronics Limited", "reason": "Radar & defence electronics leader"},
-    {"symbol": "MTAR", "name": "MTAR Technologies", "reason": "Precision engineering for defence & space"}
-  ]
-}
-</RECOMMENDATIONS>
-
-6. Only use NSE-listed stocks
-7. Give 4-6 stock recommendations maximum
-8. Be conversational, warm, and professional — like a trusted advisor
-9. If user asks follow-up after recommendations, answer and optionally refine the list
-10. Never recommend more than 6 stocks at once"""
-
-        payload = {
-            "model": PRIMARY_MODEL,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                *messages
-            ],
-            "temperature": 0.7,
-            "max_tokens": 1024,
-            "stream": False
-        }
-
-        headers = {
-            "Authorization": f"Bearer {NVIDIA_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        response = requests.post(NVIDIA_URL, headers=headers, json=payload, timeout=180)
-
-        if not response.ok:
-            # Fallback to OpenRouter
-            headers2 = {
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://ai-voice.com",
-                "X-Title": "AI Financial Advisor"
-            }
-            payload["model"] = FALLBACK_MODEL
-            response = requests.post(OPENROUTER_URL, headers=headers2, json=payload, timeout=120)
-
-        response.raise_for_status()
-        reply = response.json()["choices"][0]["message"]["content"]
-
-        # Parse out recommendations if present
-        stocks = []
-        clean_message = reply
-
-        if "<RECOMMENDATIONS>" in reply and "</RECOMMENDATIONS>" in reply:
-            parts = reply.split("<RECOMMENDATIONS>")
-            clean_message = parts[0].strip()
-            json_part = parts[1].split("</RECOMMENDATIONS>")[0].strip()
-            try:
-                rec_data = json.loads(json_part)
-                stocks = rec_data.get("stocks", [])
-            except Exception:
-                pass
-
-        return jsonify({
-            "message": clean_message,
-            "stocks": stocks
-        })
+        result = chat_market_advisor(messages)
+        return jsonify(result)
 
     except Exception as e:
+        print(f"Market advisor error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':

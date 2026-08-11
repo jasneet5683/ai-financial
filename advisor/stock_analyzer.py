@@ -51,11 +51,16 @@ def _safe_get(info: dict, key: str, default="Not available"):
 # ---------- Core function ----------
 def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> dict:
     """
-    TEST VERSION - Forces benchmark_prices to have data
+    Fetches stock data + real Nifty 50 benchmark prices from yfinance.
     """
     ticker_symbol = resolve_ticker(symbol, exchange)
-    
-    # Fetch stock only
+    cache_key = f"{ticker_symbol}_{period}"
+
+    cached = _get_cached(cache_key)
+    if cached:
+        return cached
+
+    # Fetch stock data
     try:
         stock = yf.Ticker(ticker_symbol)
         info = stock.info or {}
@@ -63,24 +68,43 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> di
     except Exception as e:
         return {"ticker": ticker_symbol, "error": f"Stock fetch failed: {str(e)}"}
 
+    # Fetch real Nifty 50 benchmark data
+    nifty_map = {}
+    try:
+        nifty = yf.Ticker("^NSEI")
+        nifty_hist = nifty.history(period=period)
+        if not nifty_hist.empty:
+            for date, row in nifty_hist.iterrows():
+                nifty_map[date.strftime('%Y-%m-%d')] = round(float(row["Close"]), 2)
+
+        # Fallback to ETF if index ticker returned nothing
+        if not nifty_map:
+            nifty2 = yf.Ticker("NIFTYBEES.NS")
+            nifty2_hist = nifty2.history(period=period)
+            if not nifty2_hist.empty:
+                for date, row in nifty2_hist.iterrows():
+                    nifty_map[date.strftime('%Y-%m-%d')] = round(float(row["Close"]), 2)
+    except Exception as e:
+        print(f"Warning: Nifty fetch failed: {str(e)}")
+
+    # Build chart arrays
     dates = []
     prices = []
-    benchmark_prices = []  # Will FORCE this to have data
+    benchmark_prices = []
 
     if not hist.empty and "Close" in hist:
         for date, row in hist.iterrows():
             d_str = date.strftime('%Y-%m-%d')
             dates.append(d_str)
             prices.append(round(float(row["Close"]), 2))
-            
-            # === TEMPORARY HACK: Generate fake Nifty data for testing ===
-            # This creates a synthetic benchmark that moves opposite to the stock slightly
-            import random
-            fake_nifty = 28000 + (len(benchmark_prices) * 10) + random.randint(-500, 500)
-            benchmark_prices.append(round(fake_nifty, 2))
-            # === END HACK ===
+            benchmark_prices.append(nifty_map.get(d_str, None))
 
-    return {
+    # Calculate period price change
+    price_change_pct = "Not available"
+    if len(prices) > 1 and prices[0] and prices[-1]:
+        price_change_pct = round(((prices[-1] - prices[0]) / prices[0]) * 100, 2)
+
+    data = {
         "ticker": ticker_symbol,
         "company_name": _safe_get(info, "longName", symbol),
         "sector": _safe_get(info, "sector"),
@@ -101,12 +125,15 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> di
         "recommendation": _safe_get(info, "recommendationKey"),
         "revenue_growth": _safe_get(info, "revenueGrowth"),
         "profit_margins": _safe_get(info, "profitMargins"),
-        "period_price_change_pct": "Not available",
+        "period_price_change_pct": price_change_pct,
         "dates": dates,
         "prices": prices,
-        "benchmark_prices": benchmark_prices,  # This will now ALWAYS have data
+        "benchmark_prices": benchmark_prices,
         "fetched_at": datetime.now().isoformat(),
     }
+
+    _set_cache(cache_key, data)
+    return data
 
 
 

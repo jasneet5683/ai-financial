@@ -129,6 +129,107 @@ def _run_with_fallback(system_prompt: str, user_content: str) -> dict:
                 "error": f"NVIDIA Error: {str(e)} | Fallback Error: {str(fallback_e)}"
             }
 
+def chat_market_advisor(messages: list) -> dict:
+    """
+    Conversational market advisor — takes full message history,
+    returns { message: str, stocks: [] }
+    """
+    system_prompt = """You are an expert Indian Stock Market Analyst with 20 years of experience.
+Your job is to guide users to find the best stocks for their needs through natural conversation.
+
+RULES:
+1. Ask ONE smart question at a time to narrow down their investment profile
+2. Questions should cover: investment goal, sector interest, risk appetite, budget, time horizon
+3. After 3-5 exchanges you have enough info — give stock recommendations
+4. NEVER give recommendations before asking at least 2-3 questions
+5. When recommending stocks, ALWAYS return a special JSON block at the END of your message
+
+RECOMMENDATION FORMAT (use this exact format when ready to recommend):
+After your friendly message, append this JSON block:
+<RECOMMENDATIONS>
+{
+  "stocks": [
+    {"symbol": "HAL", "name": "Hindustan Aeronautics Limited", "reason": "Strong order book, defence PSU"},
+    {"symbol": "BEL", "name": "Bharat Electronics Limited", "reason": "Radar & defence electronics leader"}
+  ]
+}
+</RECOMMENDATIONS>
+
+6. Only use NSE-listed stocks
+7. Give 4-6 stock recommendations maximum
+8. Be conversational, warm, and professional — like a trusted advisor
+9. If user asks follow-up after recommendations, answer and optionally refine the list
+10. Never recommend more than 6 stocks at once"""
+
+    payload = {
+        "model": PRIMARY_MODEL,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            *messages
+        ],
+        "temperature": 0.7,
+        "max_tokens": 1024,
+        "stream": False
+    }
+
+    # Try NVIDIA first
+    raw_reply = None
+    if NVIDIA_API_KEY:
+        try:
+            raw_reply = _call_api("nvidia", PRIMARY_MODEL, system_prompt,
+                                  messages[-1]["content"] if messages else "")
+            # For chat we need full history — call directly
+            headers = {
+                "Authorization": f"Bearer {NVIDIA_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            response = requests.post(NVIDIA_URL, headers=headers, json=payload, timeout=180)
+            if response.ok:
+                raw_reply = response.json()["choices"][0]["message"]["content"]
+            else:
+                raise Exception(f"NVIDIA {response.status_code}: {response.text}")
+        except Exception as e:
+            print(f"NVIDIA advisor failed: {str(e)}, trying OpenRouter...")
+            raw_reply = None
+
+    # Fallback to OpenRouter
+    if raw_reply is None and OPENROUTER_API_KEY:
+        try:
+            headers2 = {
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://ai-financial-production.up.railway.app",
+                "X-Title": "AI Financial Advisor"
+            }
+            payload["model"] = FALLBACK_MODEL
+            response = requests.post(OPENROUTER_URL, headers=headers2, json=payload, timeout=120)
+            response.raise_for_status()
+            raw_reply = response.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            raise Exception(f"Both APIs failed. OpenRouter: {str(e)}")
+
+    if not raw_reply:
+        raise Exception("No API keys configured or both APIs failed")
+
+    # Parse out recommendations if present
+    stocks = []
+    clean_message = raw_reply
+
+    if "<RECOMMENDATIONS>" in raw_reply and "</RECOMMENDATIONS>" in raw_reply:
+        parts = raw_reply.split("<RECOMMENDATIONS>")
+        clean_message = parts[0].strip()
+        json_part = parts[1].split("</RECOMMENDATIONS>")[0].strip()
+        try:
+            rec_data = json.loads(json_part)
+            stocks = rec_data.get("stocks", [])
+        except Exception as parse_err:
+            print(f"Stock JSON parse failed: {str(parse_err)}")
+
+    return {
+        "message": clean_message,
+        "stocks": stocks
+    }
+
 def analyze_stock(stock_data: dict, user_question: str = None) -> dict:
     return _run_with_fallback(build_stock_system_prompt(), build_stock_user_prompt(stock_data, user_question))
 

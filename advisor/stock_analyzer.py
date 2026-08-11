@@ -7,7 +7,7 @@ using yfinance, with in-memory caching and safe fallbacks.
 import yfinance as yf
 import time
 from datetime import datetime
-
+import pandas as pd
 
 # ---------- Simple in-memory cache (avoids Yahoo rate-limiting) ----------
 _cache = {}
@@ -49,9 +49,10 @@ def _safe_get(info: dict, key: str, default="Not available"):
 
 
 # ---------- Core function ----------
-def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "6mo") -> dict:
+def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> dict:
     """
     Returns structured stock data for a given symbol.
+    Fetches historical prices for charts and Nifty 50 benchmark data.
     Falls back gracefully if any field is missing.
     """
     ticker_symbol = resolve_ticker(symbol, exchange)
@@ -64,15 +65,44 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "6mo") -> d
     try:
         stock = yf.Ticker(ticker_symbol)
         info = stock.info or {}
-        hist = stock.history(period=period)
+        
+        # Download historical data for the stock AND Nifty 50
+        # ^NSEI is the ticker for Nifty 50 on Yahoo Finance
+        tickers = f"{ticker_symbol} ^NSEI"
+        hist_data = yf.download(tickers, period=period, progress=False)
 
-        # Price trend summary
+        dates = []
+        prices = []
+        benchmark_prices = []
         price_change_pct = None
-        if not hist.empty and len(hist) > 1:
-            start_price = hist["Close"].iloc[0]
-            end_price = hist["Close"].iloc[-1]
-            if start_price:
-                price_change_pct = round(((end_price - start_price) / start_price) * 100, 2)
+
+        if not hist_data.empty and "Close" in hist_data:
+            # Handle Single vs Multi-ticker download structures
+            if isinstance(hist_data.columns, pd.MultiIndex):
+                stock_close = hist_data["Close"][ticker_symbol]
+                nifty_close = hist_data["Close"]["^NSEI"]
+            else:
+                # Fallback if downloaded as single ticker for some reason
+                stock_close = hist_data["Close"]
+                nifty_close = pd.Series([None]*len(stock_close), index=stock_close.index)
+
+            # Drop rows where the stock data is completely missing
+            stock_close = stock_close.dropna()
+            
+            for date in stock_close.index:
+                dates.append(date.strftime('%Y-%m-%d'))
+                
+                s_price = stock_close.loc[date]
+                prices.append(round(float(s_price), 2) if not pd.isna(s_price) else None)
+                
+                try:
+                    n_price = nifty_close.loc[date]
+                    benchmark_prices.append(round(float(n_price), 2) if not pd.isna(n_price) else None)
+                except KeyError:
+                    benchmark_prices.append(None)
+
+            if len(prices) > 1 and prices[0] is not None and prices[-1] is not None:
+                price_change_pct = round(((prices[-1] - prices[0]) / prices[0]) * 100, 2)
 
         data = {
             "ticker": ticker_symbol,
@@ -96,6 +126,12 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "6mo") -> d
             "revenue_growth": _safe_get(info, "revenueGrowth"),
             "profit_margins": _safe_get(info, "profitMargins"),
             "period_price_change_pct": price_change_pct if price_change_pct is not None else "Not available",
+            
+            # Needed for the charts:
+            "dates": dates,
+            "prices": prices,
+            "benchmark_prices": benchmark_prices,
+            
             "fetched_at": datetime.now().isoformat(),
         }
 
@@ -108,7 +144,6 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "6mo") -> d
             "error": f"Failed to fetch data: {str(e)}",
             "fetched_at": datetime.now().isoformat(),
         }
-
 
 # ---------- Batch fetch for portfolio analysis ----------
 def get_portfolio_data(holdings: list) -> list:

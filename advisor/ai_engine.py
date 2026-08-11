@@ -157,12 +157,11 @@ After your friendly message, append this JSON block:
 
 6. Only use NSE-listed stocks
 7. Give 4-6 stock recommendations maximum
-8. Be conversational, warm, and professional — like a trusted advisor
+8. Be conversational, warm, and professional
 9. If user asks follow-up after recommendations, answer and optionally refine the list
 10. Never recommend more than 6 stocks at once"""
 
     payload = {
-        "model": PRIMARY_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             *messages
@@ -172,46 +171,54 @@ After your friendly message, append this JSON block:
         "stream": False
     }
 
-    # Try NVIDIA first
     raw_reply = None
+
+    # ── Try NVIDIA first ──────────────────────────────────
     if NVIDIA_API_KEY:
         try:
-            raw_reply = _call_api("nvidia", PRIMARY_MODEL, system_prompt,
-                                  messages[-1]["content"] if messages else "")
-            # For chat we need full history — call directly
+            print("Calling NVIDIA for market advisor...")
+            nvidia_payload = {**payload, "model": PRIMARY_MODEL}
             headers = {
                 "Authorization": f"Bearer {NVIDIA_API_KEY}",
                 "Content-Type": "application/json"
             }
-            response = requests.post(NVIDIA_URL, headers=headers, json=payload, timeout=180)
+            response = requests.post(
+                NVIDIA_URL, headers=headers,
+                json=nvidia_payload, timeout=60
+            )
             if response.ok:
                 raw_reply = response.json()["choices"][0]["message"]["content"]
+                print("NVIDIA advisor success")
             else:
-                raise Exception(f"NVIDIA {response.status_code}: {response.text}")
+                print(f"NVIDIA advisor failed ({response.status_code}), trying OpenRouter...")
         except Exception as e:
-            print(f"NVIDIA advisor failed: {str(e)}, trying OpenRouter...")
-            raw_reply = None
+            print(f"NVIDIA advisor exception: {str(e)}, trying OpenRouter...")
 
-    # Fallback to OpenRouter
+    # ── Fallback to OpenRouter ────────────────────────────
     if raw_reply is None and OPENROUTER_API_KEY:
         try:
+            print("Calling OpenRouter for market advisor...")
+            openrouter_payload = {**payload, "model": FALLBACK_MODEL}
             headers2 = {
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json",
                 "HTTP-Referer": "https://ai-financial-production.up.railway.app",
                 "X-Title": "AI Financial Advisor"
             }
-            payload["model"] = FALLBACK_MODEL
-            response = requests.post(OPENROUTER_URL, headers=headers2, json=payload, timeout=120)
+            response = requests.post(
+                OPENROUTER_URL, headers=headers2,
+                json=openrouter_payload, timeout=60
+            )
             response.raise_for_status()
             raw_reply = response.json()["choices"][0]["message"]["content"]
+            print("OpenRouter advisor success")
         except Exception as e:
-            raise Exception(f"Both APIs failed. OpenRouter: {str(e)}")
+            raise Exception(f"Both APIs failed. Last error: {str(e)}")
 
     if not raw_reply:
-        raise Exception("No API keys configured or both APIs failed")
+        raise Exception("No response from any API")
 
-    # Parse out recommendations if present
+    # ── Parse out stock recommendations ──────────────────
     stocks = []
     clean_message = raw_reply
 

@@ -64,26 +64,53 @@ def _call_api(provider: str, model: str, system_prompt: str, user_content: str) 
 
 def _extract_json(raw_text: str) -> dict:
     text = raw_text.strip()
-    
-    if "<think>" in text and "</think>" in text:
-        text = text.split("</think>")[-1].strip()
-        
-    text = re.sub(r'^```[a-zA-Z]*\s*', '', text, flags=re.IGNORECASE | re.MULTILINE)
-    text = re.sub(r'```\s*$', '', text, flags=re.MULTILINE)
-    text = text.strip()
 
+    # Step 1: Strip ALL <think>...</think> blocks (Nemotron reasoning traces)
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+
+    # Step 2: Try to grab clean ```json ... ``` block first
+    json_block = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+    if json_block:
+        try:
+            return json.loads(json_block.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # Step 3: Strip all remaining ``` markers
+    text = re.sub(r'```[a-zA-Z]*', '', text).replace('```', '').strip()
+
+    # Step 4: Direct parse attempt
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    start = text.find("{")
-    end = text.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        try:
-            return json.loads(text[start:end + 1])
-        except Exception as e:
-            raise ValueError(f"Extracted block is invalid JSON: {str(e)}")
+    # Step 5: Find the LARGEST valid { } block in the text
+    best = None
+    start = 0
+    while True:
+        s = text.find('{', start)
+        if s == -1:
+            break
+        depth = 0
+        for i in range(s, len(text)):
+            if text[i] == '{':
+                depth += 1
+            elif text[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    candidate = text[s:i + 1]
+                    try:
+                        parsed = json.loads(candidate)
+                        if best is None or len(candidate) > len(str(best)):
+                            best = parsed
+                    except json.JSONDecodeError:
+                        pass
+                    break
+        start = s + 1
+
+    if best:
+        return best
 
     raise ValueError("Could not parse JSON from response")
 

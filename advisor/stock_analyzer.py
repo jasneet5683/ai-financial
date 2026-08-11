@@ -52,7 +52,7 @@ def _safe_get(info: dict, key: str, default="Not available"):
 def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> dict:
     """
     Returns structured stock data for a given symbol.
-    Fetches historical prices and Nifty 50 safely.
+    Fetches historical prices and Nifty 50 (via NIFTYBEES ETF) safely.
     """
     ticker_symbol = resolve_ticker(symbol, exchange)
     cache_key = f"{ticker_symbol}_{period}"
@@ -67,21 +67,17 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> di
         info = stock.info or {}
         hist = stock.history(period=period)
 
-        # 2. Fetch Nifty 50 Data separately
-        nifty = yf.Ticker("^NSEI")
+        # 2. Fetch Nifty 50 Data using an ETF for reliability (NIFTYBEES)
+        nifty = yf.Ticker("NIFTYBEES.NS")
         nifty_hist = nifty.history(period=period)
-        
-        # DEBUG PRINT: Let's see if yfinance is actually getting data!
-        print(f"DEBUG NIFTY: Fetched {len(nifty_hist)} rows for ^NSEI")
-        if nifty_hist.empty:
-            print("WARNING: Nifty history is completely empty! yfinance failed.")
 
-
-        # Create a dictionary for Nifty prices by date for easy lookup
         nifty_map = {}
         if not nifty_hist.empty and "Close" in nifty_hist:
             for date, row in nifty_hist.iterrows():
                 nifty_map[date.strftime('%Y-%m-%d')] = round(float(row["Close"]), 2)
+            print(f"✅ Nifty ETF fetched successfully: {len(nifty_map)} days of data.")
+        else:
+            print("❌ WARNING: Failed to fetch Nifty ETF data from yfinance.")
 
         dates = []
         prices = []
@@ -97,10 +93,9 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> di
                 s_price = round(float(row["Close"]), 2)
                 prices.append(s_price)
                 
-                # Add matching Nifty 50 Price (or None if Nifty didn't trade that day)
+                # Add matching Nifty ETF Price (or None if missing)
                 benchmark_prices.append(nifty_map.get(d_str, None))
 
-            # Calculate price change
             if len(prices) > 1 and prices[0] and prices[-1]:
                 price_change_pct = round(((prices[-1] - prices[0]) / prices[0]) * 100, 2)
 
@@ -140,12 +135,13 @@ def get_stock_data(symbol: str, exchange: str = "NSE", period: str = "1y") -> di
 
     except Exception as e:
         import traceback
-        print(traceback.format_exc()) # Will print errors to your Railway logs if any
+        print("Error fetching stock:", traceback.format_exc())
         return {
             "ticker": ticker_symbol,
             "error": f"Failed to fetch data: {str(e)}",
             "fetched_at": datetime.now().isoformat(),
         }
+
 
 # ---------- Batch fetch for portfolio analysis ----------
 def get_portfolio_data(holdings: list) -> list:

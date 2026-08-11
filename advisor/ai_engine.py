@@ -135,41 +135,32 @@ def chat_market_advisor(messages: list) -> dict:
     returns { message: str, stocks: [] }
     """
     system_prompt = """You are an expert Indian Stock Market Analyst with 20 years of experience.
-Your job is to guide users to find the best stocks for their needs through natural conversation.
+Your job is to guide users to find the best stocks through natural conversation.
 
-RULES:
+CONVERSATION RULES:
 1. Ask ONE smart question at a time to narrow down their investment profile
-2. Questions should cover: investment goal, sector interest, risk appetite, budget, time horizon
-3. After 3-5 exchanges you have enough info — give stock recommendations
-4. NEVER give recommendations before asking at least 2-3 questions
-5. When recommending stocks, ALWAYS return a special JSON block at the END of your message
+2. Cover: investment goal, sector interest, risk appetite, budget, time horizon
+3. After 3-5 exchanges you have enough info — give recommendations
+4. NEVER recommend before asking at least 2-3 questions
 
-RECOMMENDATION FORMAT (use this exact format when ready to recommend):
-After your friendly message, append this JSON block:
-<RECOMMENDATIONS>
-{
-  "stocks": [
-    {"symbol": "HAL", "name": "Hindustan Aeronautics Limited", "reason": "Strong order book, defence PSU"},
-    {"symbol": "BEL", "name": "Bharat Electronics Limited", "reason": "Radar & defence electronics leader"}
-  ]
-}
-</RECOMMENDATIONS>
+OUTPUT FORMAT — follow this EXACTLY, no exceptions:
 
-6. Only use NSE-listed stocks
-7. Give 4-6 stock recommendations maximum
-8. Be conversational, warm, and professional
-9. If user asks follow-up after recommendations, answer and optionally refine the list
-10. Never recommend more than 6 stocks at once"""
+When you are NOT ready to recommend yet, reply with plain conversational text only.
+Example:
+  That sounds great! What is your risk appetite — Low, Medium, or High?
 
-    payload = {
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            *messages
-        ],
-        "temperature": 0.7,
-        "max_tokens": 1024,
-        "stream": False
-    }
+When you ARE ready to recommend, reply in this EXACT structure:
+  [Your friendly summary message here — plain text, NO JSON here]
+  <RECOMMENDATIONS>
+  {"stocks":[{"symbol":"HAL","name":"Hindustan Aeronautics Limited","reason":"Strong order book"},{"symbol":"BEL","name":"Bharat Electronics Limited","reason":"Defence electronics leader"}]}
+  </RECOMMENDATIONS>
+
+STRICT RULES FOR RECOMMENDATIONS:
+- The text BEFORE <RECOMMENDATIONS> must be plain conversational English — NO JSON, NO brackets, NO quotes
+- ALL stock data goes INSIDE <RECOMMENDATIONS> tags — nowhere else
+- Only NSE-listed Indian stocks
+- Maximum 6 stocks
+- Do NOT write the JSON anywhere outside the <RECOMMENDATIONS> block"""
 
     raw_reply = None
 
@@ -220,17 +211,39 @@ After your friendly message, append this JSON block:
 
     # ── Parse out stock recommendations ──────────────────
     stocks = []
-    clean_message = raw_reply
+    clean_message = raw_reply.strip()
 
-    if "<RECOMMENDATIONS>" in raw_reply and "</RECOMMENDATIONS>" in raw_reply:
-        parts = raw_reply.split("<RECOMMENDATIONS>")
-        clean_message = parts[0].strip()
-        json_part = parts[1].split("</RECOMMENDATIONS>")[0].strip()
+    # Strip <think> blocks if present
+    clean_message = re.sub(r'<think>.*?</think>', '', clean_message, flags=re.DOTALL).strip()
+
+    if "<RECOMMENDATIONS>" in clean_message and "</RECOMMENDATIONS>" in clean_message:
+        # Split on the tag
+        before = clean_message.split("<RECOMMENDATIONS>")[0].strip()
+        inside = clean_message.split("<RECOMMENDATIONS>")[1].split("</RECOMMENDATIONS>")[0].strip()
+
+        # Clean message is everything BEFORE the tag
+        clean_message = before
+
+        # Parse the JSON inside the tag
         try:
-            rec_data = json.loads(json_part)
+            # Handle both compact and pretty-printed JSON
+            rec_data = json.loads(inside)
             stocks = rec_data.get("stocks", [])
-        except Exception as parse_err:
-            print(f"Stock JSON parse failed: {str(parse_err)}")
+        except json.JSONDecodeError:
+            # Try to find { } block inside
+            s = inside.find("{")
+            e = inside.rfind("}")
+            if s != -1 and e != -1:
+                try:
+                    rec_data = json.loads(inside[s:e+1])
+                    stocks = rec_data.get("stocks", [])
+                except Exception as pe:
+                    print(f"Stock JSON parse failed: {str(pe)}")
+
+    # Final cleanup — if clean_message still has JSON-like content, strip it
+    # This catches cases where model leaks JSON into the message
+    if clean_message.strip().startswith("{") or clean_message.strip().startswith("["):
+        clean_message = "Here are my top stock recommendations based on your profile:"
 
     return {
         "message": clean_message,

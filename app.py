@@ -280,7 +280,7 @@ def api_ask_stock_question():
         }
         
         payload = {
-            "model": "google/gemini-2.5-flash",
+            "model": "openrouter/free",
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}

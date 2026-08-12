@@ -86,7 +86,9 @@ JSON Schema:
   "recommendation": "Buy, Hold, or Sell (or 'Wait and Watch')",
   "rationale": "A simple explanation of why you make this recommendation.",
   "confidence_level": "High/Medium/Low"
-}"""
+}
+IMPORTANT: Return ONLY the raw JSON object. No markdown, no code fences, no explanation before or after. Start your response directly with { and end with }.
+"""
 
 
 def build_stock_user_prompt(stock_data: dict, user_question: str = None) -> str:

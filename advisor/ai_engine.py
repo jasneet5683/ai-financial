@@ -85,6 +85,18 @@ def _extract_json(raw_text: str) -> dict:
     except json.JSONDecodeError:
         pass
 
+    # ✅ Step 4b: Repair common NVIDIA response issues
+    try:
+        # Fix unescaped newlines inside string values
+        repaired = re.sub(r'(?<!\\)\n', ' ', text)
+        # Fix unescaped double quotes inside values (e.g. he said "hello")
+        repaired = re.sub(r'(?<=[a-zA-Z])"(?=[a-zA-Z])', '\\"', repaired)
+        # Fix trailing commas before } or ]
+        repaired = re.sub(r',\s*([}\]])', r'\1', repaired)
+        return json.loads(repaired)
+    except json.JSONDecodeError:
+        pass
+
     # Step 5: Find the LARGEST valid { } block in the text
     best = None
     start = 0
@@ -102,6 +114,34 @@ def _extract_json(raw_text: str) -> dict:
                     candidate = text[s:i + 1]
                     try:
                         parsed = json.loads(candidate)
+                        if best is None or len(candidate) > len(str(best)):
+                            best = parsed
+                    except json.JSONDecodeError:
+                        pass
+                    break
+        start = s + 1
+
+    if best:
+        return best
+
+    # ✅ Step 6: Last resort — apply repair on each candidate block too
+    start = 0
+    while True:
+        s = text.find('{', start)
+        if s == -1:
+            break
+        depth = 0
+        for i in range(s, len(text)):
+            if text[i] == '{':
+                depth += 1
+            elif text[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    candidate = text[s:i+1]
+                    try:
+                        repaired = re.sub(r'(?<!\\)\n', ' ', candidate)
+                        repaired = re.sub(r',\s*([}\]])', r'\1', repaired)
+                        parsed = json.loads(repaired)
                         if best is None or len(candidate) > len(str(best)):
                             best = parsed
                     except json.JSONDecodeError:

@@ -229,7 +229,7 @@ STRICT RULES FOR RECOMMENDATIONS:
                 NVIDIA_URL,
                 headers=headers,
                 json=nvidia_payload,
-                timeout=60
+                timeout=25
             )
             if response.ok:
                 raw_reply = response.json()["choices"][0]["message"]["content"]

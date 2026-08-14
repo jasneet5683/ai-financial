@@ -7,3 +7,4 @@ google-auth
 flask-cors
 mftool
 googlesearch-python
+rapidfuzz

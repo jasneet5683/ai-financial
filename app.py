@@ -125,9 +125,13 @@ def api_analyze_stock():
         return response, 204
 
     data = request.json
-    symbol = data.get('symbol', '').strip().upper()
+    raw_symbol = data.get('symbol', '').strip()
     exchange = data.get('exchange', 'NSE')
     question = data.get('question', '')
+
+    # ✅ Resolve company name to actual stock symbol
+    symbol = resolve_company_to_symbol(raw_symbol, exchange)
+
 
     if not symbol:
         return jsonify({"error": "Symbol is required"}), 400

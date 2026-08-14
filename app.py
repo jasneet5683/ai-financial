@@ -5,14 +5,15 @@ Handles routes for stock lookup and portfolio analysis.
 """
 
 import os
+import csv
+import io
 from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
-#from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-#from dotenv import load_dotenv
-import traceback # Add this at the top with your other imports
+import traceback
 import requests 
 import json
+from rapidfuzz import process, fuzz
 
 # Load environment variables from .env
 load_dotenv()
@@ -22,7 +23,11 @@ from advisor.portfolio_engine import get_holdings, add_holding
 from advisor.ai_engine import analyze_stock, analyze_portfolio, chat_market_advisor
 
 app = Flask(__name__, static_folder='.', static_url_path='')
-CORS(app) 
+CORS(app)
+
+# Load NSE symbol list once at startup
+with app.app_context():
+    load_nse_symbols()
 
 import math
 
@@ -36,46 +41,70 @@ def fix_nan(response):
 
 
 #==== Search Function =========
+# ── NSE Symbol Map (loaded once at startup) ──────────────
+_NSE_MAP   = {}   # { "INFOSYS LTD": "INFY" }
+_NSE_NAMES = []   # for fuzzy search
+
+def load_nse_symbols():
+    global _NSE_MAP, _NSE_NAMES
+    try:
+        url = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
+        resp = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0", "Referer": "https://www.nseindia.com"},
+            timeout=15
+        )
+        reader = csv.DictReader(io.StringIO(resp.text))
+        for row in reader:
+            name   = row['NAME OF COMPANY'].strip().upper()
+            symbol = row['SYMBOL'].strip().upper()
+            _NSE_MAP[name] = symbol
+        _NSE_NAMES = list(_NSE_MAP.keys())
+        print(f"NSE symbols loaded: {len(_NSE_NAMES)}")
+    except Exception as e:
+        print(f"NSE load failed: {e}")
+
 
 def resolve_company_to_symbol(query: str, exchange: str) -> str:
     """
-    Takes a company name (e.g., "Tata Motors") and returns its stock symbol (e.g., "TATAMOTORS").
-    Uses Yahoo Finance's public search API.
+    Resolves any company name or partial name to its NSE/BSE symbol.
+    Priority: exact symbol → fuzzy NSE list → Yahoo Finance → as typed
     """
-    # If the user typed a short symbol with no spaces, assume it's already a symbol
-    if len(query) <= 15 and " " not in query:
-        # We will still search just in case, but keep the original as fallback
-        pass 
+    query_upper = query.strip().upper()
 
-    url = f"https://query2.finance.yahoo.com/v1/finance/search?q={query}"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    
+    # 1. Already a valid symbol
+    if query_upper in _NSE_MAP.values():
+        return query_upper
+
+    # 2. Fuzzy match on full NSE list
+    if _NSE_NAMES:
+        match, score, _ = process.extractOne(
+            query_upper, _NSE_NAMES, scorer=fuzz.WRatio
+        )
+        if score >= 70:
+            resolved = _NSE_MAP[match]
+            print(f"Resolved '{query}' → '{resolved}' (matched '{match}', score={score})")
+            return resolved
+
+    # 3. Yahoo Finance fallback
     try:
-        response = requests.get(url, headers=headers, timeout=5)
-        data = response.json()
-        quotes = data.get('quotes', [])
-        
-        if not quotes:
-            return query.upper() # Fallback to what the user typed
-            
         suffix = ".NS" if exchange == "NSE" else ".BO"
-        
-        # 1. Look for a matching stock on the requested Indian exchange
-        for quote in quotes:
-            sym = quote.get('symbol', '')
+        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={query}"
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
+        quotes = resp.json().get('quotes', [])
+        for q in quotes:
+            sym = q.get('symbol', '')
             if sym.endswith(suffix):
-                return sym.replace(suffix, "") # Return just the base symbol (e.g., "TATAMOTORS")
-                
-        # 2. If no exact exchange match, just return the first result's symbol
-        best_match = quotes[0].get('symbol', '')
-        if best_match.endswith('.NS') or best_match.endswith('.BO'):
-            return best_match[:-3]
-            
-        return best_match
-
+                return sym.replace(suffix, "")
+        for q in quotes:
+            sym = q.get('symbol', '')
+            if sym.endswith('.NS') or sym.endswith('.BO'):
+                return sym[:-3]
     except Exception as e:
-        print(f"Search API failed: {e}")
-        return query.upper() # Fallback to what the user typed if search fails
+        print(f"Yahoo fallback failed: {e}")
+
+    # 4. Last resort
+    return query_upper
 
 
 

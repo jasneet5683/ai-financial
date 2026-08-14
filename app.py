@@ -115,6 +115,28 @@ def index():
 
 # --- API ENDPOINTS ---
 
+@app.route('/api/search-stocks', methods=['GET'])
+def search_stocks():
+    query = request.args.get('q', '').strip().upper()
+    if not query or len(query) < 2:
+        return jsonify([])
+
+    if not _NSE_NAMES:
+        return jsonify([])
+
+    results = process.extract(query, _NSE_NAMES, scorer=fuzz.WRatio, limit=8)
+
+    suggestions = []
+    for match, score, _ in results:
+        if score >= 50:
+            suggestions.append({
+                "name": match.title(),         # "Infosys Ltd"
+                "symbol": _NSE_MAP[match]       # "INFY"
+            })
+
+    return jsonify(suggestions)
+
+
 @app.route('/api/analyze-stock', methods=['POST', 'OPTIONS'])
 def api_analyze_stock():
     if request.method == 'OPTIONS':

@@ -25,10 +25,6 @@ from advisor.ai_engine import analyze_stock, analyze_portfolio, chat_market_advi
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
-# Load NSE symbol list once at startup
-with app.app_context():
-    load_nse_symbols()
-
 import math
 
 @app.after_request
@@ -106,7 +102,9 @@ def resolve_company_to_symbol(query: str, exchange: str) -> str:
     # 4. Last resort
     return query_upper
 
-
+# Load NSE symbol list once at startup
+with app.app_context():
+    load_nse_symbols()
 
 # --- WEB ROUTES ---
 

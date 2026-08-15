@@ -337,12 +337,16 @@ def api_analyze_portfolio():
         # ── 3. Mutual Funds → get live NAV via mf_data_fetcher ──
         funds_live = []
         for f in fund_rows:
-            scheme_code = f.get("scheme_code")           # must exist in your sheet
-            mf_data = fetch_mstarpy_fund_details(f["fund_name"], scheme_code)
+            scheme_code = f.get("scheme_code")
+            mf_data     = fetch_mstarpy_fund_details(f["fund_name"], scheme_code)
 
             amount_invested = float(f.get("amount_invested") or 0)
             units           = float(f.get("units_purchased") or 0)
-            current_nav     = mf_data.get("current_nav") or 0     # ← not returned directly!
+            current_nav     = mf_data.get("current_nav") or 0
+
+            current_value = round(units * current_nav, 2) if units and current_nav else None
+            pnl           = round(current_value - amount_invested, 2) if current_value else None
+            pnl_pct       = round((pnl / amount_invested) * 100, 2) if pnl and amount_invested else None
 
             funds_live.append({
                 "ticker":          f["fund_name"],
@@ -351,9 +355,14 @@ def api_analyze_portfolio():
                 "fund_category":   mf_data.get("fund_category"),
                 "units":           units,
                 "amount_invested": amount_invested,
-                "raw_search_text": mf_data.get("raw_search_text"),  # AI reads this
+                "current_nav":     current_nav,
+                "nav_date":        mf_data.get("nav_date"),
+                "current_value":   current_value,
+                "pnl":             pnl,
+                "pnl_pct":         pnl_pct,
+                "raw_search_text": mf_data.get("raw_search_text"),  # AI reads this for AUM, expense ratio etc.
             })
-        
+      
         # ── 4. Combine and send to AI ────────────────────────
         all_holdings = equity_live + funds_live
 

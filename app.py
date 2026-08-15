@@ -14,6 +14,12 @@ import traceback
 import requests 
 import json
 from rapidfuzz import process, fuzz
+import jwt
+import bcrypt
+import os
+from datetime import datetime, timedelta, timezone
+from functools import wraps
+
 
 # Load environment variables from .env
 load_dotenv()
@@ -105,6 +111,29 @@ def resolve_company_to_symbol(query: str, exchange: str) -> str:
 # Load NSE symbol list once at startup
 with app.app_context():
     load_nse_symbols()
+
+# ── Portfolio Auth Setup ──────────────────────────────────
+_RAW_PASSWORD = os.environ.get('PORTFOLIO_PASSWORD', '').encode('utf-8')
+_HASHED_PASSWORD = bcrypt.hashpw(_RAW_PASSWORD, bcrypt.gensalt()) if _RAW_PASSWORD else None
+_JWT_SECRET = os.environ.get('JWT_SECRET', 'fallback-secret-change-me')
+_JWT_EXPIRY_DAYS = 7
+
+def verify_portfolio_token(f):
+    """Decorator to protect portfolio endpoints with JWT."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token:
+            return jsonify({"error": "Unauthorized"}), 401
+        try:
+            jwt.decode(token, _JWT_SECRET, algorithms=['HS256'])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Session expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
 
 # --- WEB ROUTES ---
 
@@ -246,6 +275,7 @@ def api_analyze_stock():
         return jsonify({"error": str(e)}), 500
      
 @app.route('/api/analyze-portfolio', methods=['POST'])
+@verify_portfolio_token          
 def api_analyze_portfolio():
     """
     Analyzes the entire portfolio from Google Sheets.
@@ -275,6 +305,7 @@ def api_analyze_portfolio():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/add-stock', methods=['POST'])
+@verify_portfolio_token       
 def api_add_stock():
     """
     Adds a new stock to the Google Sheet.
@@ -292,6 +323,37 @@ def api_add_stock():
         return jsonify(res)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/portfolio-login', methods=['POST', 'OPTIONS'])
+def portfolio_login():
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 204
+
+    if not _HASHED_PASSWORD:
+        return jsonify({"error": "Portfolio password not configured"}), 500
+
+    data = request.json or {}
+    password = data.get('password', '').encode('utf-8')
+
+    if bcrypt.checkpw(password, _HASHED_PASSWORD):
+        token = jwt.encode({
+            'sub': 'jasneet',
+            'exp': datetime.now(timezone.utc) + timedelta(days=_JWT_EXPIRY_DAYS)
+        }, _JWT_SECRET, algorithm='HS256')
+        return jsonify({"token": token})
+    else:
+        return jsonify({"error": "Incorrect password"}), 401
+
+
+@app.route('/api/portfolio-logout', methods=['POST'])
+def portfolio_logout():
+    # JWT is stateless — client just deletes the token
+    return jsonify({"message": "Logged out"})
+
 
 @app.route('/api/ask-stock-question', methods=['POST', 'OPTIONS'])
 def api_ask_stock_question():

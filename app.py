@@ -356,6 +356,7 @@ def api_analyze_portfolio():
                 "fund_type":       f["fund_type"],
                 "quantity":           units,
                 "amount_invested": amount_invested,
+                "buy_price":       round(amount_invested / units, 2) if units else None,
                 "current_nav":     current_nav,
                 "nav_date":        mf_data.get("nav_date"),
                 "current_value":   current_value,

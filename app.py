@@ -26,8 +26,11 @@ load_dotenv()
 
 from advisor.stock_analyzer import get_stock_data, get_portfolio_data
 #from advisor.portfolio_engine import get_holdings, add_holding
-from advisor.ai_engine import analyze_stock, analyze_portfolio, chat_market_advisor, analyze_portfolio
+from advisor.ai_engine import analyze_stock, analyze_portfolio, chat_market_advisor
 from advisor.portfolio_sheets import get_equity_holdings, get_fund_holdings, log_portfolio_view
+from advisor.mf_data_fetcher import fetch_mstarpy_fund_details
+
+
 
 
 app = Flask(__name__, static_folder='.', static_url_path='')
@@ -306,59 +309,65 @@ def portfolio_auth():
     return jsonify({"token": token}), 200
 
 @app.route('/api/analyze-portfolio', methods=['POST'])
-@verify_portfolio_token          
+@verify_portfolio_token
 def api_analyze_portfolio():
-    """
-    Analyzes the entire portfolio from Google Sheets.
-    JSON input: { "question": "optional" }
-    """
     data = request.json or {}
     user_question = data.get('question')
 
     try:
-        # 1. Get holdings from Google Sheet
-        equity = get_equity_holdings()
-        funds  = get_fund_holdings()
-        # Normalize equity keys
-        equity_normalized = [
+        # ── 1. Read from Google Sheets ──────────────────────
+        equity_rows = get_equity_holdings()
+        fund_rows   = get_fund_holdings()
+
+        if not equity_rows and not fund_rows:
+            return jsonify({"message": "Portfolio is empty."}), 200
+
+        # ── 2. Equity → get live stock data via yfinance ────
+        equity_input = [
             {
                 "symbol":    h["symbol"],
-                "exchange":  h.get("broker", "NSE"),   # use broker as exchange hint, default NSE
+                "exchange":  h.get("broker", "NSE"),
                 "quantity":  h["quantity"],
-                "buy_price": h["purchase_price"],       # ← key rename
+                "buy_price": h["purchase_price"],
             }
-            for h in equity
+            for h in equity_rows
         ]
+        equity_live = get_portfolio_data(equity_input) if equity_input else []
 
-        # Normalize funds — use Fund_Name as symbol, no exchange
-        funds_normalized = [
-            {
-                "symbol":    f["fund_name"],            # ← funds have no ticker
-                "exchange":  "MF",
-                "quantity":  f.get("units_purchased"),
-                "buy_price": f.get("amount_invested"),
-            }
-            for f in funds
-        ]
+        # ── 3. Mutual Funds → get live NAV via mf_data_fetcher ──
+        funds_live = []
+        for f in fund_rows:
+            scheme_code = f.get("scheme_code")           # must exist in your sheet
+            mf_data = fetch_mstarpy_fund_details(f["fund_name"], scheme_code)
 
-        holdings = equity_normalized + funds_normalized
+            amount_invested = float(f.get("amount_invested") or 0)
+            units           = float(f.get("units_purchased") or 0)
+            current_nav     = mf_data.get("current_nav") or 0     # ← not returned directly!
+
+            funds_live.append({
+                "ticker":          f["fund_name"],
+                "type":            "mutual_fund",
+                "fund_house":      mf_data.get("fund_house"),
+                "fund_category":   mf_data.get("fund_category"),
+                "units":           units,
+                "amount_invested": amount_invested,
+                "raw_search_text": mf_data.get("raw_search_text"),  # AI reads this
+            })
         
-        if not holdings:
-            return jsonify({"message": "Portfolio is empty. Add stocks to your Google Sheet first."}), 200
+        # ── 4. Combine and send to AI ────────────────────────
+        all_holdings = equity_live + funds_live
 
-        # 2. Get live data and P&L for all holdings
-        portfolio_live_data = get_portfolio_data(holdings)
-
-        # 3. Get AI Analysis
-        analysis = analyze_portfolio(portfolio_live_data, user_question)
+        analysis = analyze_portfolio(all_holdings, user_question)
 
         return jsonify({
-            "portfolio_data": portfolio_live_data,
+            "portfolio_data": all_holdings,
             "analysis": analysis
         })
+
     except Exception as e:
-        traceback.print_exc() 
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/add-stock', methods=['POST'])
 @verify_portfolio_token       

@@ -352,7 +352,7 @@ def api_analyze_portfolio():
                 "type":            "mutual_fund",
                 "amc":             f["amc"],
                 "fund_type":       f["fund_type"],
-                "units":           units,
+                "quantity":           units,
                 "amount_invested": amount_invested,
                 "current_nav":     current_nav,
                 "nav_date":        mf_data.get("nav_date"),

@@ -104,7 +104,6 @@ def add_equity_holding(data: dict) -> dict:
         data.get("quantity", ""),
         data.get("purchase_price", ""),
         data.get("purchase_date", ""),
-        "",                              # Current_Price — left blank, fetched live
         data.get("notes", ""),
     ])
     _write_audit("ADD", "Equity",

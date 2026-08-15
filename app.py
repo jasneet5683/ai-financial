@@ -333,6 +333,7 @@ def api_analyze_portfolio():
             "analysis": analysis
         })
     except Exception as e:
+        traceback.print_exc() 
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/add-stock', methods=['POST'])

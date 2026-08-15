@@ -75,17 +75,17 @@ def get_equity_holdings() -> list:
     for row in records:
         if not row.get("Symbol"):
             continue
-        holdings.append({
-            "symbol":          str(row.get("Symbol", "")).strip().upper(),
-            "company_name":    str(row.get("Company_Name", "")).strip(),
-            "broker":          str(row.get("Broker", "")).strip(),
-            "sector":          str(row.get("Sector", "")).strip(),
-            "quantity":        _to_float(row.get("Quantity")),
-            "purchase_price":  _to_float(row.get("Purchase_Price")),
-            "purchase_date":   str(row.get("Purchase_Date", "")).strip(),
-            "current_price":   _to_float(row.get("Current_Price")),   # manual fallback
-            "notes":           str(row.get("Notes", "")).strip(),
-        })
+            holdings.append({
+        "symbol":         str(row.get("Symbol", "")).strip().upper(),
+        "company_name":   str(row.get("Company_Name", "")).strip(),
+        "broker":         str(row.get("Broker", "")).strip(),
+        "sector":         str(row.get("Sector", "")).strip(),
+        "quantity":       _to_float(row.get("Quantity")),
+        "purchase_price": _to_float(row.get("Purchase_Price")),
+        "purchase_date":  str(row.get("Purchase_Date", "")).strip(),
+        "notes":          str(row.get("Notes", "")).strip(),
+    })
+
     return holdings
 
 
@@ -124,28 +124,26 @@ def get_fund_holdings() -> list:
     """
     ws = _get_sheet().worksheet(TAB_FUNDS)
     records = ws.get_all_records()
-
     funds = []
     for row in records:
         if not row.get("Fund_Name"):
             continue
         funds.append({
-            "fund_name":        str(row.get("Fund_Name", "")).strip(),
-            "fund_type":        str(row.get("Fund_Type", "")).strip(),   # SIP / Lumpsum
-            "amc":              str(row.get("AMC", "")).strip(),
-            "investment_date":  str(row.get("Investment_Date", "")).strip(),
-            "amount_invested":  _to_float(row.get("Amount_Invested")),
-            "units_purchased":  _to_float(row.get("Units_Purchased")),
-            "current_nav":      _to_float(row.get("Current_NAV")),       # manual fallback
-            "exit_load":        _to_float(row.get("Exit_Load")),
-            "expense_ratio":    _to_float(row.get("Expense_Ratio")),
-            "sip_amount":       _to_float(row.get("SIP_Amount")),
-            "sip_date":         _to_int(row.get("SIP_Date")),            # day of month
-            "stepup_percent":   _to_float(row.get("Stepup_Percent")),
-            "notes":            str(row.get("Notes", "")).strip(),
+            "fund_name":       str(row.get("Fund_Name", "")).strip(),
+            "scheme_code":     str(row.get("Scheme_Code", "")).strip(),   # ← ADD
+            "fund_type":       str(row.get("Fund_Type", "")).strip(),
+            "amc":             str(row.get("AMC", "")).strip(),
+            "investment_date": str(row.get("Investment_Date", "")).strip(),
+            "amount_invested": _to_float(row.get("Amount_Invested")),
+            "units_purchased": _to_float(row.get("Units_Purchased")),
+            "exit_load":       _to_float(row.get("Exit_Load")),
+            "expense_ratio":   _to_float(row.get("Expense_Ratio")),
+            "sip_amount":      _to_float(row.get("SIP_Amount")),
+            "sip_date":        _to_int(row.get("SIP_Date")),
+            "stepup_percent":  _to_float(row.get("Stepup_Percent")),
+            "notes":           str(row.get("Notes", "")).strip(),
         })
     return funds
-
 
 def add_fund_holding(data: dict) -> dict:
     """
@@ -154,12 +152,13 @@ def add_fund_holding(data: dict) -> dict:
     ws = _get_sheet().worksheet(TAB_FUNDS)
     ws.append_row([
         data.get("fund_name", ""),
+        data.get("scheme_code", ""), 
         data.get("fund_type", ""),
         data.get("amc", ""),
         data.get("investment_date", ""),
         data.get("amount_invested", ""),
         data.get("units_purchased", ""),
-        "",                               # Current_NAV — fetched live
+       
         data.get("exit_load", ""),
         data.get("expense_ratio", ""),
         data.get("sip_amount", ""),

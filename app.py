@@ -276,6 +276,35 @@ def api_analyze_stock():
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
      
+@app.route('/api/portfolio-auth', methods=['POST', 'OPTIONS'])
+def portfolio_auth():
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 204
+
+    if not _HASHED_PASSWORD:
+        return jsonify({"error": "Portfolio auth not configured"}), 500
+
+    data = request.json or {}
+    password = data.get('password', '').encode('utf-8')
+
+    if not bcrypt.checkpw(password, _HASHED_PASSWORD):
+        return jsonify({"error": "Invalid password"}), 401
+
+    token = jwt.encode(
+        {
+            "sub": "portfolio",
+            "iat": datetime.now(timezone.utc),
+            "exp": datetime.now(timezone.utc) + timedelta(days=_JWT_EXPIRY_DAYS)
+        },
+        _JWT_SECRET,
+        algorithm='HS256'
+    )
+    return jsonify({"token": token}), 200
+
 @app.route('/api/analyze-portfolio', methods=['POST'])
 @verify_portfolio_token          
 def api_analyze_portfolio():

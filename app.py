@@ -319,8 +319,29 @@ def api_analyze_portfolio():
         # 1. Get holdings from Google Sheet
         equity = get_equity_holdings()
         funds  = get_fund_holdings()
-        # Combine both into one list
-        holdings = equity + funds
+        # Normalize equity keys
+        equity_normalized = [
+            {
+                "symbol":    h["symbol"],
+                "exchange":  h.get("broker", "NSE"),   # use broker as exchange hint, default NSE
+                "quantity":  h["quantity"],
+                "buy_price": h["purchase_price"],       # ← key rename
+            }
+            for h in equity
+        ]
+
+        # Normalize funds — use Fund_Name as symbol, no exchange
+        funds_normalized = [
+            {
+                "symbol":    f["fund_name"],            # ← funds have no ticker
+                "exchange":  "MF",
+                "quantity":  f.get("units_purchased"),
+                "buy_price": f.get("amount_invested"),
+            }
+            for f in funds
+        ]
+
+        holdings = equity_normalized + funds_normalized
         
         if not holdings:
             return jsonify({"message": "Portfolio is empty. Add stocks to your Google Sheet first."}), 200

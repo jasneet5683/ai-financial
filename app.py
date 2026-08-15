@@ -318,6 +318,8 @@ def api_analyze_portfolio():
         # ── 1. Read from Google Sheets ──────────────────────
         equity_rows = get_equity_holdings()
         fund_rows   = get_fund_holdings()
+        print(f"[DEBUG] fund_rows: {fund_rows}")
+
 
         if not equity_rows and not fund_rows:
             return jsonify({"message": "Portfolio is empty."}), 200

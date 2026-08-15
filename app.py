@@ -25,7 +25,7 @@ from functools import wraps
 load_dotenv()
 
 from advisor.stock_analyzer import get_stock_data, get_portfolio_data
-from advisor.portfolio_engine import get_holdings, add_holding
+#from advisor.portfolio_engine import get_holdings, add_holding
 from advisor.ai_engine import analyze_stock, analyze_portfolio, chat_market_advisor, analyze_portfolio
 from advisor.portfolio_sheets import get_equity_holdings, get_fund_holdings, log_portfolio_view
 
@@ -317,7 +317,10 @@ def api_analyze_portfolio():
 
     try:
         # 1. Get holdings from Google Sheet
-        holdings = get_holdings()
+        equity = get_equity_holdings()
+        funds  = get_fund_holdings()
+        # Combine both into one list
+        holdings = equity + funds
         
         if not holdings:
             return jsonify({"message": "Portfolio is empty. Add stocks to your Google Sheet first."}), 200

@@ -37,6 +37,8 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
             nav_list = nav_data['data']
             current_nav = float(nav_list[0]['nav'])
             nav_date = nav_list[0]['date']
+            mf_data["current_nav"] = current_nav
+            mf_data["nav_date"]    = nav_date
             
             # Helper to safely get NAV from roughly X trading days ago
             def get_old_nav(days_ago):
@@ -106,5 +108,9 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
     mf_data["raw_search_text"] = final_text
     
     print(f"[mf_fetcher] Final text sent to AI: {mf_data['raw_search_text'][:200]}...")
+
+    # Ensure keys always exist even if nav fetch failed
+    mf_data.setdefault("current_nav", None)
+    mf_data.setdefault("nav_date",    None)
 
     return mf_data

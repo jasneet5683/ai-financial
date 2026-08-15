@@ -26,12 +26,15 @@ def fetch_mstarpy_fund_details(fund_name: str, scheme_code: str = None):
         
         # Get Category and AMC
         details = obj.get_scheme_details(scheme_code)
+        print(f"[DEBUG] scheme_details: {details}")
         if details:
             mf_data["fund_category"] = details.get("scheme_category", "Unknown")
             mf_data["fund_house"] = details.get("mutual_fund_family", "Unknown")
 
         # Get Historical NAVs and Calculate Returns
         nav_data = obj.get_scheme_historical_nav(scheme_code, as_json=False)
+        print(f"[DEBUG] nav_data keys: {nav_data.keys() if nav_data else 'None'}")                                    # ← ADD
+        print(f"[DEBUG] nav_data sample: {nav_data['data'][:2] if nav_data and 'data' in nav_data else 'No data'}")   # ← ADD
         
         if nav_data and 'data' in nav_data and len(nav_data['data']) > 0:
             nav_list = nav_data['data']

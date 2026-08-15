@@ -322,7 +322,7 @@ def api_analyze_portfolio():
         if not equity_rows and not fund_rows:
             return jsonify({"message": "Portfolio is empty."}), 200
 
-        # ── 2. Equity → get live stock data via yfinance ────
+        # ── 2. Equity → live price via yfinance ─────────────────
         equity_input = [
             {
                 "symbol":    h["symbol"],
@@ -334,11 +334,10 @@ def api_analyze_portfolio():
         ]
         equity_live = get_portfolio_data(equity_input) if equity_input else []
 
-        # ── 3. Mutual Funds → get live NAV via mf_data_fetcher ──
+        # ── 3. MF → live NAV via mftool ─────────────────────────
         funds_live = []
         for f in fund_rows:
-            scheme_code = f.get("scheme_code")
-            mf_data     = fetch_mstarpy_fund_details(f["fund_name"], scheme_code)
+            mf_data = fetch_mstarpy_fund_details(f["fund_name"], f["scheme_code"])
 
             amount_invested = float(f.get("amount_invested") or 0)
             units           = float(f.get("units_purchased") or 0)
@@ -351,8 +350,8 @@ def api_analyze_portfolio():
             funds_live.append({
                 "ticker":          f["fund_name"],
                 "type":            "mutual_fund",
-                "fund_house":      mf_data.get("fund_house"),
-                "fund_category":   mf_data.get("fund_category"),
+                "amc":             f["amc"],
+                "fund_type":       f["fund_type"],
                 "units":           units,
                 "amount_invested": amount_invested,
                 "current_nav":     current_nav,
@@ -360,14 +359,17 @@ def api_analyze_portfolio():
                 "current_value":   current_value,
                 "pnl":             pnl,
                 "pnl_pct":         pnl_pct,
-                "raw_search_text": mf_data.get("raw_search_text"),  # AI reads this for AUM, expense ratio etc.
+                "exit_load":       f["exit_load"],
+                "expense_ratio":   f["expense_ratio"],
+                "sip_amount":      f["sip_amount"],
+                "raw_search_text": mf_data.get("raw_search_text"),
             })
-      
-        # ── 4. Combine and send to AI ────────────────────────
+
+        # ── 4. Combine → AI ──────────────────────────────────────
         all_holdings = equity_live + funds_live
-
         analysis = analyze_portfolio(all_holdings, user_question)
-
+      
+        
         return jsonify({
             "portfolio_data": all_holdings,
             "analysis": analysis

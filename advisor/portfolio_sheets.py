@@ -75,15 +75,15 @@ def get_equity_holdings() -> list:
     for row in records:
         if not row.get("Symbol"):
             continue
-            holdings.append({
-        "symbol":         str(row.get("Symbol", "")).strip().upper(),
-        "company_name":   str(row.get("Company_Name", "")).strip(),
-        "broker":         str(row.get("Broker", "")).strip(),
-        "sector":         str(row.get("Sector", "")).strip(),
-        "quantity":       _to_float(row.get("Quantity")),
-        "purchase_price": _to_float(row.get("Purchase_Price")),
-        "purchase_date":  str(row.get("Purchase_Date", "")).strip(),
-        "notes":          str(row.get("Notes", "")).strip(),
+        holdings.append({
+          "symbol":         str(row.get("Symbol", "")).strip().upper(),
+          "company_name":   str(row.get("Company_Name", "")).strip(),
+          "broker":         str(row.get("Broker", "")).strip(),
+          "sector":         str(row.get("Sector", "")).strip(),
+          "quantity":       _to_float(row.get("Quantity")),
+          "purchase_price": _to_float(row.get("Purchase_Price")),
+          "purchase_date":  str(row.get("Purchase_Date", "")).strip(),
+          "notes":          str(row.get("Notes", "")).strip(),
     })
 
     return holdings

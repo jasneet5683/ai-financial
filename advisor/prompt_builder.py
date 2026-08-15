@@ -177,30 +177,61 @@ You MUST return EXACTLY this JSON structure, and nothing else:
 
 def build_mf_user_prompt(mf_data: dict, user_question: str = None) -> str:
     """
-    Constructs the user prompt for Mutual Fund analysis.
-    Ensures the raw_search_text (which contains AMFI calculations and Google snippets)
-    is explicitly passed to the AI.
+    Works for BOTH flows:
+    1. Old flow — single fund search (has raw_search_text, fund_category, fund_house)
+    2. New flow — Portfolio Sheet holdings (has amc, fund_type, amount_invested, etc.)
     """
-    fund_name = mf_data.get("fund_name", "Unknown Fund")
-    fund_category = mf_data.get("fund_category", "Unknown Category")
-    fund_house = mf_data.get("fund_house", "Unknown House")
-    
-    # This is the magic line that was missing/incorrect before
+    fund_name       = mf_data.get("fund_name", "Unknown Fund")
+    fund_house      = mf_data.get("fund_house") or mf_data.get("amc", "Unknown AMC")
+    fund_category   = mf_data.get("fund_category") or mf_data.get("fund_type", "Unknown Category")
     raw_search_text = mf_data.get("raw_search_text", "No live data available.")
 
+    # Portfolio sheet specific fields
+    amount_invested  = mf_data.get("amount_invested")
+    units_purchased  = mf_data.get("units_purchased")
+    current_nav      = mf_data.get("current_nav")
+    sip_amount       = mf_data.get("sip_amount")
+    sip_date         = mf_data.get("sip_date")
+    stepup_percent   = mf_data.get("stepup_percent")
+    investment_date  = mf_data.get("investment_date")
+    exit_load        = mf_data.get("exit_load")
+    expense_ratio    = mf_data.get("expense_ratio")
+    notes            = mf_data.get("notes", "")
+
+    # Build portfolio context block only if these fields exist
+    portfolio_block = ""
+    if amount_invested or units_purchased:
+        portfolio_block = f"""
+Investor's Holdings Data:
+- Investment Date  : {investment_date or 'N/A'}
+- Amount Invested  : ₹{amount_invested or 'N/A'}
+- Units Purchased  : {units_purchased or 'N/A'}
+- Current NAV      : ₹{current_nav or 'Not provided — fetch live'}
+- SIP Amount       : ₹{sip_amount or 'N/A'}
+- SIP Date         : {sip_date or 'N/A'} (day of month)
+- Step-up %        : {stepup_percent or 'N/A'}%
+- Exit Load        : {exit_load or 'N/A'}%
+- Expense Ratio    : {expense_ratio or 'N/A'}%
+- Notes            : {notes or 'None'}
+"""
+
     prompt = (
-        f"Analyze the following Mutual Fund/ETF:\n"
-        f"Fund Name: {fund_name}\n"
-        f"Fund House: {fund_house}\n"
-        f"Category: {fund_category}\n\n"
-        f"Here is the latest live data retrieved from AMFI and web search:\n"
+        f"Analyze the following Mutual Fund:\n"
+        f"Fund Name  : {fund_name}\n"
+        f"Fund House : {fund_house}\n"
+        f"Category   : {fund_category}\n"
+        f"{portfolio_block}"
+        f"\nHere is the latest live data retrieved from AMFI and web search:\n"
         f"--- LIVE DATA START ---\n"
         f"{raw_search_text}\n"
         f"--- LIVE DATA END ---\n\n"
-        f"Using the live data provided above, provide a comprehensive analysis."
+        f"Using all data provided above, give a comprehensive analysis."
     )
 
     if user_question:
-        prompt += f"\n\nThe user asked a specific question: '{user_question}'\nPlease address this question specifically in your analysis summary."
+        prompt += (
+            f"\n\nThe user asked: '{user_question}'\n"
+            f"Please address this specifically in your analysis summary."
+        )
 
     return prompt

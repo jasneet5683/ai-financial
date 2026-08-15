@@ -26,7 +26,9 @@ load_dotenv()
 
 from advisor.stock_analyzer import get_stock_data, get_portfolio_data
 from advisor.portfolio_engine import get_holdings, add_holding
-from advisor.ai_engine import analyze_stock, analyze_portfolio, chat_market_advisor
+from advisor.ai_engine import analyze_stock, analyze_portfolio, chat_market_advisor, analyze_portfolio
+from advisor.portfolio_sheets import get_equity_holdings, get_fund_holdings, log_portfolio_view
+
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
@@ -354,6 +356,23 @@ def portfolio_logout():
     # JWT is stateless — client just deletes the token
     return jsonify({"message": "Logged out"})
 
+
+@app.route("/api/portfolio-data", methods=["GET"])
+def portfolio_data():
+    try:
+        equity = get_equity_holdings()
+        funds = get_fund_holdings()
+        log_portfolio_view("All")
+        return jsonify({
+            "status": "success",
+            "equity": equity,
+            "mutual_funds": funds
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 @app.route('/api/ask-stock-question', methods=['POST', 'OPTIONS'])
 def api_ask_stock_question():

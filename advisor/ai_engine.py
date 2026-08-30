@@ -22,7 +22,7 @@ from advisor.prompt_builder import (
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+NVIDIA_URL = "https://ai.api.nvidia.com/v1/chat/completions"
 PRIMARY_MODEL = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"

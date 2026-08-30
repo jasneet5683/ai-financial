@@ -22,7 +22,7 @@ from advisor.prompt_builder import (
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-NVIDIA_URL = "https://integrate.api.nvidia.com/v1"
+NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 PRIMARY_MODEL = "meta/muse-glimmer-30b"
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
